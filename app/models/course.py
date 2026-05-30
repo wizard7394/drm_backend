@@ -33,5 +33,7 @@ class CourseVideo(Base):
     duration: Mapped[int] = mapped_column(Integer, default=0)
     video_url: Mapped[str] = mapped_column(String(1024))
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    aes_key: Mapped[str] = mapped_column(String(100), nullable=True)
+    aes_iv: Mapped[str] = mapped_column(String(50), nullable=True)
     
     section = relationship("CourseSection", back_populates="videos")

@@ -1,10 +1,17 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from pydantic import BaseModel
 from app.api.dependencies import get_db
 from app.models.course import Course, CourseSection, CourseVideo
 from app.schemas.admin import CreateCourseRequest, CreateSectionRequest, CreateVideoRequest
 
 router = APIRouter()
+
+class KeySyncPayload(BaseModel):
+    video_id: int
+    aes_key: str
+    aes_iv: str
 
 @router.post("/course", status_code=status.HTTP_201_CREATED)
 async def create_course(request: CreateCourseRequest, db: AsyncSession = Depends(get_db)):
@@ -43,3 +50,21 @@ async def create_video(request: CreateVideoRequest, db: AsyncSession = Depends(g
     await db.commit()
     await db.refresh(new_video)
     return {"status": "success", "video_id": new_video.id}
+
+@router.post("/keys/sync", status_code=status.HTTP_200_OK)
+async def sync_video_keys(payload: KeySyncPayload, db: AsyncSession = Depends(get_db)):
+    query = await db.execute(select(CourseVideo).where(CourseVideo.id == payload.video_id))
+    db_video = query.scalars().first()
+    
+    if not db_video:
+        raise HTTPException(status_code=404, detail="Video not found")
+        
+    db_video.aes_key = payload.aes_key
+    db_video.aes_iv = payload.aes_iv
+    
+    try:
+        await db.commit()
+        return {"status": "success", "message": "Encryption keys synced securely."}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
