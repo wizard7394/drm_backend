@@ -1,11 +1,15 @@
-import uuid
+import jwt
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from app.models.license import License
 from app.models.device import HardwareDevice
 from app.schemas.auth import HardwareAuthRequest
+
+SECRET_KEY = "DJHNIUY#@HDF&^*HFVJKDSfhyuewfbnjhdvnc78#NVC*#Bnfv8wnv"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 
 async def verify_and_register_device(request: HardwareAuthRequest, db: AsyncSession) -> str:
     device_query = await db.execute(select(HardwareDevice).where(HardwareDevice.hardware_hash == request.hardware_hash))
@@ -17,7 +21,7 @@ async def verify_and_register_device(request: HardwareAuthRequest, db: AsyncSess
         
         device.last_online = datetime.now(timezone.utc)
         await db.commit()
-        return f"jwt_{uuid.uuid4().hex}"
+        return _generate_real_jwt(device.license_id, request.hardware_hash)
 
     license_query = await db.execute(select(License).where(License.license_key == request.license_key))
     db_license = license_query.scalars().first()
@@ -42,4 +46,12 @@ async def verify_and_register_device(request: HardwareAuthRequest, db: AsyncSess
     db.add(new_device)
     await db.commit()
     
-    return f"jwt_{uuid.uuid4().hex}"
+    return _generate_real_jwt(db_license.id, request.hardware_hash)
+
+def _generate_real_jwt(license_id: int, hardware_hash: str) -> str:
+    to_encode = {
+        "license_id": license_id,
+        "device_hash": hardware_hash,
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    }
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
