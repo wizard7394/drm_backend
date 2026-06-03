@@ -16,6 +16,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="DRM Microservice", version="1.0.0", lifespan=lifespan)
 
+
+@app.get("/")
+def home():
+    return {"status": "ok"}
+
+
 app.include_router(auth_api_router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(webhook_api_router, prefix="/api/v1/webhook", tags=["Webhooks"])
 app.include_router(course_api_router, prefix="/api/v1/course", tags=["Courses"])
