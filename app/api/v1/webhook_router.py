@@ -13,15 +13,19 @@ from app.models.license import License
 from app.services.license_service import generate_license_key
 
 router = APIRouter()
-WOOCOMMERCE_SECRET = "J7^jhdf912-_j2bch23Nh2mn@#$bhd53ksssHy3^51JK785v"
+WOOCOMMERCE_SECRET = "your_super_secret_key"
 
 @router.post("/woocommerce")
 async def woocommerce_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    event = request.headers.get("x-wc-webhook-event", "")
+    if event == "ping":
+        return {"status": "success", "message": "Webhook ping successful."}
+
     payload = await request.body()
     signature = request.headers.get("x-wc-webhook-signature")
     
     if not signature:
-        raise HTTPException(status_code=401, detail="Missing signature")
+        raise HTTPException(status_code=401, detail="Missing signature header")
         
     expected_sig = hmac.new(
         WOOCOMMERCE_SECRET.encode("utf-8"),
@@ -32,15 +36,16 @@ async def woocommerce_webhook(request: Request, db: AsyncSession = Depends(get_d
     expected_sig_b64 = base64.b64encode(expected_sig).decode("utf-8")
     
     if not hmac.compare_digest(signature, expected_sig_b64):
-        raise HTTPException(status_code=403, detail="Invalid signature")
+        raise HTTPException(status_code=403, detail="Invalid digital signature")
         
     order_data = json.loads(payload)
-    order = WooCommerceOrder(**order_data)
-
-    if order.status != "completed":
+    
+    if order_data.get("status") != "completed":
         return {"status": "ignored", "message": "Order is not completed yet."}
-
+        
+    order = WooCommerceOrder(**order_data)
     phone = order.billing.phone
+    
     user_query = await db.execute(select(User).where(User.phone_number == phone))
     user = user_query.scalars().first()
 
