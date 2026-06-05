@@ -13,7 +13,7 @@ from app.models.license import License
 from app.services.license_service import generate_license_key
 
 router = APIRouter()
-WOOCOMMERCE_SECRET = "your_super_secret_key"
+WOOCOMMERCE_SECRET = "J7^jhdf912-_j2bch23Nh2mn@#$bhd53ksssHy3^51JK785v"
 
 @router.post("/woocommerce")
 async def woocommerce_webhook(request: Request, db: AsyncSession = Depends(get_db)):
@@ -41,6 +41,7 @@ async def woocommerce_webhook(request: Request, db: AsyncSession = Depends(get_d
     order_data = json.loads(payload)
     
     if order_data.get("status") != "completed":
+        print(f"⚠️ Order {order_data.get('id')} ignored. Status: {order_data.get('status')}")
         return {"status": "ignored", "message": "Order is not completed yet."}
         
     order = WooCommerceOrder(**order_data)
@@ -67,4 +68,5 @@ async def woocommerce_webhook(request: Request, db: AsyncSession = Depends(get_d
         generated_licenses.append(new_license)
 
     await db.commit()
-    return {"status": "success", "message": f"Created {len(generated_licenses)} licenses for user."}
+    print(f"✅ Success! {len(generated_licenses)} licenses generated for phone: {phone}")
+    return {"status": "success", "message": f"Created {len(generated_licenses)} licenses."}
