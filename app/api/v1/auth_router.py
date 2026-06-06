@@ -48,7 +48,7 @@ async def request_otp(payload: OTPRequest, db: AsyncSession = Depends(get_db)):
             detail="No purchased courses found for this account. Please visit the website to purchase."
         )
         
-    secure_otp = "".join(str(secrets.randbelow(10)) for _ in range(5))
+    secure_otp = "".join(str(secrets.randbelow(10)) for _ in range(7))
     
     user.otp_code = secure_otp
     user.otp_expire = datetime.now(timezone.utc) + timedelta(minutes=2)
