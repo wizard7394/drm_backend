@@ -10,7 +10,7 @@ class HardwareDevice(Base):
     license_id: Mapped[int] = mapped_column(ForeignKey("licenses.id"))
     hardware_hash: Mapped[str] = mapped_column(String(256), unique=True, index=True)
     platform: Mapped[str] = mapped_column(String(50))
-    last_online: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    last_online: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     
     license = relationship("License", back_populates="devices")
@@ -23,6 +23,6 @@ class HardwareResetLog(Base):
     old_hardware_hash: Mapped[str] = mapped_column(String(256), nullable=True)
     reset_reason: Mapped[str] = mapped_column(String(255), nullable=True)
     is_paid: Mapped[bool] = mapped_column(Boolean, default=False)
-    reset_date: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    reset_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     
     license = relationship("License", back_populates="reset_logs")

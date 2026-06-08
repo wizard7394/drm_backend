@@ -13,7 +13,7 @@ class License(Base):
     transaction_id: Mapped[str] = mapped_column(String(100), nullable=True)
     max_devices: Mapped[int] = mapped_column(Integer, default=1)
     reset_count: Mapped[int] = mapped_column(Integer, default=0)
-    purchase_date: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    purchase_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     
     user = relationship("User", back_populates="licenses")

@@ -14,7 +14,7 @@ from app.models.user import User
 router = APIRouter()
 
 class OTPRequest(BaseModel):
-    phone: str
+    phone_number: str
 
 @router.post("/hardware", response_model=SignedAuthResponse)
 async def validate_hardware(
@@ -37,7 +37,7 @@ async def validate_hardware(
 
 @router.post("/request-otp")
 async def request_otp(payload: OTPRequest, db: AsyncSession = Depends(get_db)):
-    phone = payload.phone
+    phone = payload.phone_number
     
     user_query = await db.execute(select(User).where(User.phone_number == phone))
     user = user_query.scalars().first()
@@ -61,12 +61,12 @@ async def request_otp(payload: OTPRequest, db: AsyncSession = Depends(get_db)):
 
 
 class VerifyOTPRequest(BaseModel):
-    phone: str
+    phone_number: str
     code: str
 
 @router.post("/verify-otp")
 async def verify_otp(payload: VerifyOTPRequest, db: AsyncSession = Depends(get_db)):
-    user_query = await db.execute(select(User).where(User.phone_number == payload.phone))
+    user_query = await db.execute(select(User).where(User.phone_number == payload.phone_number))
     user = user_query.scalars().first()
 
     if not user:
