@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.core.database import engine, Base
 from app.api.v1.auth_router import router as auth_api_router
 from app.api.v1.webhook_router import router as webhook_api_router
@@ -8,6 +9,7 @@ from app.api.v1.admin_router import router as admin_api_router
 from app.api.v1.telemetry_router import router as telemetry_api_router
 from app.api.v1.dashboard_router import router as dashboard_router
 from app.api.v1 import stream_router
+from app.models.admin import Admin
 
 
 @asynccontextmanager
@@ -19,6 +21,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="DRM Microservice", version="1.0.0", lifespan=lifespan)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://panel.devstorage.site",
+        "https://panel.devstorage.site",
+        "http://localhost:8080"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/")
 def home():
