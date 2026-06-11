@@ -10,6 +10,7 @@ class WooCommerceLineItem(BaseModel):
 class WooCommerceOrder(BaseModel):
     id: int
     status: str
+    total: str
     billing: WooCommerceBilling
     line_items: list[WooCommerceLineItem]
 

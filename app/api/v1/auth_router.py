@@ -11,6 +11,11 @@ from app.services.auth_service import verify_and_register_device
 from app.core.security import sign_payload, create_access_token
 from app.models.user import User
 
+import bcrypt
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.future import select
+from app.models.admin import Admin
+
 router = APIRouter()
 
 class OTPRequest(BaseModel):
@@ -93,4 +98,47 @@ async def verify_otp(payload: VerifyOTPRequest, db: AsyncSession = Depends(get_d
         "status": "success",
         "access_token": access_token,
         "message": "Authentication successful."
+    }
+    
+    
+@router.post("/admin/login")
+async def admin_login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: AsyncSession = Depends(get_db)
+):
+    result = await db.execute(select(Admin).where(Admin.username == form_data.username))
+    admin_user = result.scalars().first()
+
+    if not admin_user:
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect username or password"
+        )
+
+    is_password_correct = bcrypt.checkpw(
+        form_data.password.encode('utf-8'),
+        admin_user.hashed_password.encode('utf-8')
+    )
+
+    if not is_password_correct:
+        raise HTTPException(
+            status_code=401,
+            detail="Incorrect username or password"
+        )
+
+    if not admin_user.is_active:
+        raise HTTPException(
+            status_code=403,
+            detail="Admin account is disabled"
+        )
+
+    access_token = create_access_token(
+        data={"sub": str(admin_user.id), "role": "superuser"}
+    )
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "status": "success",
+        "message": "Admin authentication successful"
     }

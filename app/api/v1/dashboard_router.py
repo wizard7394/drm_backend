@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.api.dependencies import get_current_user_token, get_db
 from app.models.course import Course, CourseSection, CourseVideo
 from app.models.license import License
+from app.models.user import User
+from app.models.transaction import Transaction
 
 router = APIRouter()
 
@@ -71,3 +73,42 @@ async def get_course_details(
         })
 
     return {"status": "success", "sections": result}
+
+
+@router.get("/stats")
+async def get_dashboard_stats(db: AsyncSession = Depends(get_db)):
+    users_query = await db.execute(select(func.count(User.id)))
+    total_users = users_query.scalar() or 0
+
+    licenses_query = await db.execute(select(func.count(License.id)))
+    total_licenses = licenses_query.scalar() or 0
+
+    courses_query = await db.execute(select(func.count(Course.id)))
+    total_courses = courses_query.scalar() or 0
+
+    recent_tx_query = await db.execute(
+        select(Transaction, User, Course)
+        .join(User, Transaction.user_id == User.id)
+        .join(Course, Transaction.course_id == Course.id, isouter=True)
+        .order_by(Transaction.created_at.desc())
+        .limit(5)
+    )
+    
+    recent_records = recent_tx_query.all()
+    recent_transactions = []
+    
+    for tx, usr, crs in recent_records:
+        recent_transactions.append({
+            "status": tx.status,
+            "user": usr.phone_number if usr.phone_number else "Unknown",
+            "course": crs.title if crs else tx.transaction_type,
+            "amount": str(tx.amount)
+        })
+
+    return {
+        "status": "success",
+        "total_users": total_users,
+        "total_licenses": total_licenses,
+        "total_courses": total_courses,
+        "recent_transactions": recent_transactions
+    }

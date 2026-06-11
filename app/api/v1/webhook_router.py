@@ -1,19 +1,21 @@
-from fastapi import APIRouter, Depends, Request, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+import os
 import hmac
 import hashlib
 import base64
 import json
+from fastapi import APIRouter, Depends, Request, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.api.dependencies import get_db
 from app.schemas.webhook import WooCommerceOrder
 from app.models.user import User
 from app.models.license import License
+from app.models.transaction import Transaction
 from app.services.license_service import generate_license_key
 
 router = APIRouter()
-WOOCOMMERCE_SECRET = "J7^jhdf912-_j2bch23Nh2mn@#$bhd53ksssHy3^51JK785v"
+WOOCOMMERCE_SECRET = os.getenv("WOOCOMMERCE_SECRET")
 
 @router.post("/woocommerce")
 async def woocommerce_webhook(request: Request, db: AsyncSession = Depends(get_db)):
@@ -27,6 +29,9 @@ async def woocommerce_webhook(request: Request, db: AsyncSession = Depends(get_d
     if not signature:
         raise HTTPException(status_code=401, detail="Missing signature header")
         
+    if not WOOCOMMERCE_SECRET:
+        raise HTTPException(status_code=500, detail="Server configuration error: Missing Webhook Secret")
+
     expected_sig = hmac.new(
         WOOCOMMERCE_SECRET.encode("utf-8"),
         payload,
@@ -41,7 +46,7 @@ async def woocommerce_webhook(request: Request, db: AsyncSession = Depends(get_d
     order_data = json.loads(payload)
     
     if order_data.get("status") != "completed":
-        print(f"⚠️ Order {order_data.get('id')} ignored. Status: {order_data.get('status')}")
+        print(f"Warning: Order {order_data.get('id')} ignored. Status: {order_data.get('status')}")
         return {"status": "ignored", "message": "Order is not completed yet."}
         
     order = WooCommerceOrder(**order_data)
@@ -65,8 +70,22 @@ async def woocommerce_webhook(request: Request, db: AsyncSession = Depends(get_d
             max_devices=1
         )
         db.add(new_license)
+        await db.flush()
         generated_licenses.append(new_license)
+        
+        new_transaction = Transaction(
+            user_id=user.id,
+            transaction_type="course_purchase",
+            course_id=item.product_id,
+            license_id=new_license.id,
+            amount=float(order.total),
+            reference_id=str(order.id),
+            gateway="woocommerce",
+            status="success",
+            meta_data={"product_name": item.name, "wc_order_id": order.id}
+        )
+        db.add(new_transaction)
 
     await db.commit()
-    print(f"✅ Success! {len(generated_licenses)} licenses generated for phone: {phone}")
+    print(f"Success! {len(generated_licenses)} licenses and transactions created for phone: {phone}")
     return {"status": "success", "message": f"Created {len(generated_licenses)} licenses."}
