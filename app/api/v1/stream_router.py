@@ -6,7 +6,7 @@ from sqlalchemy import select
 from app.api.dependencies import get_db, get_current_device
 from app.models.license import License
 from app.models.device import HardwareDevice
-from app.models.course import CourseVideo
+from app.models.course import CourseNode
 
 router = APIRouter()
 
@@ -30,7 +30,9 @@ async def get_video_keys(
         )
 
     video_query = await db.execute(
-        select(CourseVideo).where(CourseVideo.id == video_id)
+        select(CourseNode).where(
+            CourseNode.id == video_id, CourseNode.item_type == "video"
+        )
     )
     db_video = video_query.scalars().first()
 

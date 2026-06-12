@@ -1,39 +1,45 @@
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Integer, ForeignKey, Boolean
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy.orm import relationship, backref
 from app.core.database import Base
+
 
 class Course(Base):
     __tablename__ = "courses"
-    
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    title: Mapped[str] = mapped_column(String(255))
-    watermark_text: Mapped[str] = mapped_column(String(255), nullable=True)
-    watermark_color: Mapped[str] = mapped_column(String(50), default="rgba(255, 255, 255, 0.5)")
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    
-    sections = relationship("CourseSection", back_populates="course", cascade="all, delete-orphan", order_by="CourseSection.sort_order")
 
-class CourseSection(Base):
-    __tablename__ = "course_sections"
-    
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"))
-    title: Mapped[str] = mapped_column(String(255))
-    sort_order: Mapped[int] = mapped_column(Integer, default=0)
-    
-    course = relationship("Course", back_populates="sections")
-    videos = relationship("CourseVideo", back_populates="section", cascade="all, delete-orphan", order_by="CourseVideo.sort_order")
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, index=True)
+    watermark_text = Column(String, nullable=True)
+    watermark_color = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
 
-class CourseVideo(Base):
-    __tablename__ = "course_videos"
-    
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    section_id: Mapped[int] = mapped_column(ForeignKey("course_sections.id"))
-    title: Mapped[str] = mapped_column(String(255))
-    duration: Mapped[int] = mapped_column(Integer, default=0)
-    video_url: Mapped[str] = mapped_column(String(1024))
-    sort_order: Mapped[int] = mapped_column(Integer, default=0)
-    aes_key: Mapped[str] = mapped_column(String(100), nullable=True)
-    aes_iv: Mapped[str] = mapped_column(String(50), nullable=True)
-    
-    section = relationship("CourseSection", back_populates="videos")
+    nodes = relationship(
+        "CourseNode", back_populates="course", cascade="all, delete-orphan"
+    )
+
+
+class CourseNode(Base):
+    __tablename__ = "course_nodes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    course_id = Column(
+        Integer, ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
+    )
+    parent_id = Column(
+        Integer, ForeignKey("course_nodes.id", ondelete="CASCADE"), nullable=True
+    )
+
+    item_type = Column(String, nullable=False)
+    title = Column(String, nullable=False)
+    sort_order = Column(Integer, default=1)
+
+    video_url = Column(String, nullable=True)
+    duration = Column(Integer, nullable=True)
+    aes_key = Column(String, nullable=True)
+    aes_iv = Column(String, nullable=True)
+
+    course = relationship("Course", back_populates="nodes")
+    children = relationship(
+        "CourseNode",
+        backref=backref("parent", remote_side=[id]),
+        cascade="all, delete-orphan",
+    )
