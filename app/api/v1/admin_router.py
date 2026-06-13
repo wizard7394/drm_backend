@@ -11,6 +11,10 @@ from app.models.vault import VideoVault
 router = APIRouter()
 
 
+class AutoBuildRequest(BaseModel):
+    batch_name: str
+
+
 class CreateCourseRequest(BaseModel):
     title: str
     watermark_text: Optional[str] = None
@@ -297,3 +301,86 @@ async def delete_vault_item(vault_id: int, db: AsyncSession = Depends(get_db)):
     await db.delete(v_item)
     await db.commit()
     return {"status": "success"}
+
+
+@router.post("/vault/{course_id}/auto-build", status_code=status.HTTP_200_OK)
+async def auto_build_course_tree(
+    course_id: int, request: AutoBuildRequest, db: AsyncSession = Depends(get_db)
+):
+    query = await db.execute(
+        select(VideoVault)
+        .where(
+            VideoVault.course_id == course_id,
+            VideoVault.batch_name == request.batch_name,
+            VideoVault.status == "unused",
+        )
+        .order_by(VideoVault.original_filename)
+    )
+    vault_items = query.scalars().all()
+
+    if not vault_items:
+        raise HTTPException(
+            status_code=400, detail="No unused items found for this batch."
+        )
+
+    folder_cache = {}
+
+    for item in vault_items:
+        if not item.original_filename:
+            continue
+
+        parts = item.original_filename.split("/")
+        parent_id = None
+        current_path = ""
+
+        for i in range(len(parts) - 1):
+            folder_name = parts[i]
+            current_path = (
+                f"{current_path}/{folder_name}" if current_path else folder_name
+            )
+
+            if current_path in folder_cache:
+                parent_id = folder_cache[current_path]
+            else:
+                node_q = await db.execute(
+                    select(CourseNode).where(
+                        CourseNode.course_id == course_id,
+                        CourseNode.parent_id == parent_id,
+                        CourseNode.title == folder_name,
+                        CourseNode.item_type == "folder",
+                    )
+                )
+                existing_node = node_q.scalars().first()
+
+                if existing_node:
+                    parent_id = existing_node.id
+                    folder_cache[current_path] = parent_id
+                else:
+                    new_folder = CourseNode(
+                        course_id=course_id,
+                        parent_id=parent_id,
+                        item_type="folder",
+                        title=folder_name,
+                        sort_order=1,
+                    )
+                    db.add(new_folder)
+                    await db.flush()
+                    parent_id = new_folder.id
+                    folder_cache[current_path] = parent_id
+
+        file_name = parts[-1]
+        title = file_name.rsplit(".", 1)[0] if "." in file_name else file_name
+
+        new_video = CourseNode(
+            course_id=course_id,
+            parent_id=parent_id,
+            item_type="video",
+            title=title,
+            sort_order=1,
+            vault_id=item.id,
+        )
+        db.add(new_video)
+        item.status = "used"
+
+    await db.commit()
+    return {"status": "success", "processed_items": len(vault_items)}
