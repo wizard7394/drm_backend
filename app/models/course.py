@@ -15,6 +15,9 @@ class Course(Base):
     nodes = relationship(
         "CourseNode", back_populates="course", cascade="all, delete-orphan"
     )
+    vault_items = relationship(
+        "VideoVault", back_populates="course", cascade="all, delete-orphan"
+    )
 
 
 class CourseNode(Base):
@@ -27,6 +30,9 @@ class CourseNode(Base):
     parent_id = Column(
         Integer, ForeignKey("course_nodes.id", ondelete="CASCADE"), nullable=True
     )
+    vault_id = Column(
+        Integer, ForeignKey("video_vault.id", ondelete="SET NULL"), nullable=True
+    )
 
     item_type = Column(String, nullable=False)
     title = Column(String, nullable=False)
@@ -34,8 +40,7 @@ class CourseNode(Base):
 
     video_url = Column(String, nullable=True)
     duration = Column(Integer, nullable=True)
-    aes_key = Column(String, nullable=True)
-    aes_iv = Column(String, nullable=True)
+    attachment_url = Column(String, nullable=True)
 
     course = relationship("Course", back_populates="nodes")
     children = relationship(
@@ -43,3 +48,4 @@ class CourseNode(Base):
         backref=backref("parent", remote_side=[id]),
         cascade="all, delete-orphan",
     )
+    vault_item = relationship("VideoVault", backref="nodes")

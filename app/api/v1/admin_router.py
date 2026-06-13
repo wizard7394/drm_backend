@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from app.api.dependencies import get_db
 from app.models.course import Course, CourseNode
+from app.models.vault import VideoVault
 
 router = APIRouter()
 
@@ -23,6 +25,8 @@ class CreateNodeRequest(BaseModel):
     sort_order: int = 1
     video_url: Optional[str] = None
     duration: Optional[int] = None
+    attachment_url: Optional[str] = None
+    vault_id: Optional[int] = None
 
 
 class UpdateNodeRequest(BaseModel):
@@ -30,12 +34,25 @@ class UpdateNodeRequest(BaseModel):
     sort_order: int
     video_url: Optional[str] = None
     duration: Optional[int] = None
+    attachment_url: Optional[str] = None
+    vault_id: Optional[int] = None
 
 
-class KeySyncPayload(BaseModel):
-    video_id: int
+class VaultItemPayload(BaseModel):
+    uuid: str
+    file_hash: str
     aes_key: str
     aes_iv: str
+
+
+class VaultBulkUploadRequest(BaseModel):
+    course_id: int
+    batch_name: str
+    items: List[VaultItemPayload]
+
+
+class UpdateVaultUrlRequest(BaseModel):
+    download_url: str
 
 
 @router.post("/course", status_code=status.HTTP_201_CREATED)
@@ -61,7 +78,7 @@ async def delete_course(course_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Course not found")
     await db.delete(course)
     await db.commit()
-    return {"status": "success", "message": "Course deleted permanently."}
+    return {"status": "success"}
 
 
 @router.get("/courses", status_code=status.HTTP_200_OK)
@@ -83,6 +100,14 @@ async def get_all_courses(db: AsyncSession = Depends(get_db)):
 
 @router.post("/node", status_code=status.HTTP_201_CREATED)
 async def create_node(request: CreateNodeRequest, db: AsyncSession = Depends(get_db)):
+    if request.vault_id:
+        v_query = await db.execute(
+            select(VideoVault).where(VideoVault.id == request.vault_id)
+        )
+        v_item = v_query.scalars().first()
+        if v_item:
+            v_item.status = "used"
+
     new_node = CourseNode(
         course_id=request.course_id,
         parent_id=request.parent_id,
@@ -91,6 +116,8 @@ async def create_node(request: CreateNodeRequest, db: AsyncSession = Depends(get
         sort_order=request.sort_order,
         video_url=request.video_url,
         duration=request.duration,
+        attachment_url=request.attachment_url,
+        vault_id=request.vault_id,
     )
     db.add(new_node)
     await db.commit()
@@ -106,11 +133,29 @@ async def update_node(
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
 
+    if node.item_type == "video" and request.vault_id != node.vault_id:
+        if node.vault_id:
+            old_q = await db.execute(
+                select(VideoVault).where(VideoVault.id == node.vault_id)
+            )
+            old_v = old_q.scalars().first()
+            if old_v:
+                old_v.status = "orphaned"
+        if request.vault_id:
+            new_q = await db.execute(
+                select(VideoVault).where(VideoVault.id == request.vault_id)
+            )
+            new_v = new_q.scalars().first()
+            if new_v:
+                new_v.status = "used"
+
     node.title = request.title
     node.sort_order = request.sort_order
     if node.item_type == "video":
         node.video_url = request.video_url
         node.duration = request.duration
+        node.attachment_url = request.attachment_url
+        node.vault_id = request.vault_id
 
     await db.commit()
     return {"status": "success"}
@@ -122,6 +167,13 @@ async def delete_node(node_id: int, db: AsyncSession = Depends(get_db)):
     node = query.scalars().first()
     if not node:
         raise HTTPException(status_code=404, detail="Node not found")
+
+    if node.vault_id:
+        v_q = await db.execute(select(VideoVault).where(VideoVault.id == node.vault_id))
+        v_item = v_q.scalars().first()
+        if v_item:
+            v_item.status = "orphaned"
+
     await db.delete(node)
     await db.commit()
     return {"status": "success"}
@@ -136,6 +188,7 @@ async def get_course_tree(course_id: int, db: AsyncSession = Depends(get_db)):
 
     nodes_query = await db.execute(
         select(CourseNode)
+        .options(selectinload(CourseNode.vault_item))
         .where(CourseNode.course_id == course_id)
         .order_by(CourseNode.sort_order)
     )
@@ -151,7 +204,9 @@ async def get_course_tree(course_id: int, db: AsyncSession = Depends(get_db)):
             "sort_order": node.sort_order,
             "video_url": node.video_url,
             "duration": node.duration,
-            "is_encrypted": bool(node.aes_key and node.aes_iv),
+            "attachment_url": node.attachment_url,
+            "vault_id": node.vault_id,
+            "is_encrypted": bool(node.vault_id),
             "children": [],
         }
 
@@ -168,32 +223,74 @@ async def get_course_tree(course_id: int, db: AsyncSession = Depends(get_db)):
 
     return {
         "status": "success",
-        "course": {
-            "id": course.id,
-            "title": course.title,
-        },
+        "course": {"id": course.id, "title": course.title},
         "tree": tree,
     }
 
 
-@router.post("/keys/sync", status_code=status.HTTP_200_OK)
-async def sync_video_keys(payload: KeySyncPayload, db: AsyncSession = Depends(get_db)):
+@router.post("/vault/bulk", status_code=status.HTTP_201_CREATED)
+async def bulk_upload_vault(
+    request: VaultBulkUploadRequest, db: AsyncSession = Depends(get_db)
+):
+    for item in request.items:
+        new_vault = VideoVault(
+            course_id=request.course_id,
+            batch_name=request.batch_name,
+            uuid=item.uuid,
+            file_hash=item.file_hash,
+            aes_key=item.aes_key,
+            aes_iv=item.aes_iv,
+        )
+        db.add(new_vault)
+    await db.commit()
+    return {"status": "success", "inserted": len(request.items)}
+
+
+@router.get("/vault/{course_id}", status_code=status.HTTP_200_OK)
+async def get_vault_items(
+    course_id: int, status_filter: str = "unused", db: AsyncSession = Depends(get_db)
+):
     query = await db.execute(
-        select(CourseNode).where(
-            CourseNode.id == payload.video_id, CourseNode.item_type == "video"
+        select(VideoVault).where(
+            VideoVault.course_id == course_id, VideoVault.status == status_filter
         )
     )
-    db_video = query.scalars().first()
+    items = query.scalars().all()
+    result = []
+    for item in items:
+        result.append(
+            {
+                "id": item.id,
+                "batch_name": item.batch_name,
+                "uuid": item.uuid,
+                "file_hash": item.file_hash,
+                "download_url": item.download_url,
+                "status": item.status,
+                "created_at": item.created_at,
+            }
+        )
+    return {"status": "success", "vault_items": result}
 
-    if not db_video:
-        raise HTTPException(status_code=404, detail="Video not found")
 
-    db_video.aes_key = payload.aes_key
-    db_video.aes_iv = payload.aes_iv
+@router.put("/vault/{vault_id}/url", status_code=status.HTTP_200_OK)
+async def update_vault_url(
+    vault_id: int, request: UpdateVaultUrlRequest, db: AsyncSession = Depends(get_db)
+):
+    query = await db.execute(select(VideoVault).where(VideoVault.id == vault_id))
+    v_item = query.scalars().first()
+    if not v_item:
+        raise HTTPException(status_code=404, detail="Vault item not found")
+    v_item.download_url = request.download_url
+    await db.commit()
+    return {"status": "success"}
 
-    try:
-        await db.commit()
-        return {"status": "success", "message": "Encryption keys synced securely."}
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/vault/{vault_id}", status_code=status.HTTP_200_OK)
+async def delete_vault_item(vault_id: int, db: AsyncSession = Depends(get_db)):
+    query = await db.execute(select(VideoVault).where(VideoVault.id == vault_id))
+    v_item = query.scalars().first()
+    if not v_item:
+        raise HTTPException(status_code=404, detail="Vault item not found")
+    await db.delete(v_item)
+    await db.commit()
+    return {"status": "success"}

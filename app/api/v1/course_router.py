@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from app.api.dependencies import get_db, get_current_device
 from app.models.course import Course, CourseNode
 from app.models.license import License
@@ -39,6 +40,7 @@ async def get_course_details(
 
     nodes_query = await db.execute(
         select(CourseNode)
+        .options(selectinload(CourseNode.vault_item))
         .where(CourseNode.course_id == course_id)
         .order_by(CourseNode.sort_order)
     )
@@ -52,8 +54,15 @@ async def get_course_details(
             "item_type": node.item_type,
             "title": node.title,
             "sort_order": node.sort_order,
-            "video_url": node.video_url,
             "duration": node.duration,
+            "attachment_url": node.attachment_url,
+            "vault": {
+                "uuid": node.vault_item.uuid,
+                "file_hash": node.vault_item.file_hash,
+                "download_url": node.vault_item.download_url,
+            }
+            if node.vault_item
+            else None,
             "children": [],
         }
 
