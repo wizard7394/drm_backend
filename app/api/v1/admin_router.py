@@ -43,6 +43,7 @@ class VaultItemPayload(BaseModel):
     file_hash: str
     aes_key: str
     aes_iv: str
+    original_filename: Optional[str] = None
 
 
 class VaultBulkUploadRequest(BaseModel):
@@ -237,6 +238,7 @@ async def bulk_upload_vault(
             course_id=request.course_id,
             batch_name=request.batch_name,
             uuid=item.uuid,
+            original_filename=item.original_filename,
             file_hash=item.file_hash,
             aes_key=item.aes_key,
             aes_iv=item.aes_iv,
@@ -263,6 +265,7 @@ async def get_vault_items(
                 "id": item.id,
                 "batch_name": item.batch_name,
                 "uuid": item.uuid,
+                "original_filename": item.original_filename,
                 "file_hash": item.file_hash,
                 "download_url": item.download_url,
                 "status": item.status,
