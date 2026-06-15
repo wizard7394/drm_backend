@@ -212,6 +212,12 @@ async def get_course_tree(course_id: int, db: AsyncSession = Depends(get_db)):
             "attachment_url": node.attachment_url,
             "vault_id": node.vault_id,
             "is_encrypted": bool(node.vault_id),
+            "vault": {
+                "uuid": node.vault_item.uuid,
+                "download_url": node.vault_item.download_url,
+            }
+            if node.vault_item
+            else None,
             "children": [],
         }
 
