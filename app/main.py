@@ -43,5 +43,6 @@ app.include_router(webhook_api_router, prefix="/api/v1/webhook", tags=["Webhooks
 app.include_router(course_api_router, prefix="/api/v1/course", tags=["Courses"])
 app.include_router(admin_api_router, prefix="/api/v1/admin", tags=["Admin Panel"])
 app.include_router(telemetry_api_router, prefix="/api/v1/telemetry", tags=["Telemetry"])
-app.include_router(stream_router.router, prefix="/hls", tags=["Streaming"])
+app.include_router(stream_router.router, prefix="/drm", tags=["Streaming"])
 app.include_router(dashboard_router, prefix="/api/v1/dashboard", tags=["Dashboard"])
+
