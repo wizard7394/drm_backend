@@ -1,30 +1,30 @@
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Boolean, DateTime
-from datetime import datetime, timezone
+from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 
 class User(Base):
     __tablename__ = "users"
 
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    phone_number: Mapped[str] = mapped_column(String(15), unique=True, index=True)
-    email: Mapped[str] = mapped_column(String(100), nullable=True)
-    first_name: Mapped[str] = mapped_column(String(50), nullable=True)
-    last_name: Mapped[str] = mapped_column(String(50), nullable=True)
-    register_ip: Mapped[str] = mapped_column(String(45), nullable=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    last_active: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    id = Column(Integer, primary_key=True, index=True)
+    mobile = Column(String, unique=True, index=True, nullable=False)
+    first_name = Column(String, nullable=True)
+    last_name = Column(String, nullable=True)
+    email = Column(String, nullable=True)
+    violation_count = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    otp_code = Column(String, nullable=True)
+    otp_expire = Column(DateTime(timezone=True), nullable=True)
+
+    devices = relationship(
+        "Device", back_populates="user", cascade="all, delete-orphan"
     )
-
-    otp_code: Mapped[str] = mapped_column(String(10), nullable=True)
-    otp_expire: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
-
     licenses = relationship(
         "License", back_populates="user", cascade="all, delete-orphan"
     )
-    watch_logs = relationship(
-        "WatchHistory", back_populates="user", cascade="all, delete-orphan"
+    hardware_resets = relationship(
+        "HardwareReset", back_populates="user", cascade="all, delete-orphan"
     )
 

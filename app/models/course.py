@@ -18,6 +18,9 @@ class Course(Base):
     vault_items = relationship(
         "VideoVault", back_populates="course", cascade="all, delete-orphan"
     )
+    licenses = relationship(
+        "License", back_populates="course", cascade="all, delete-orphan"
+    )
 
 
 class CourseNode(Base):

@@ -1,5 +1,4 @@
 import os
-import jwt
 import base64
 import json
 from datetime import datetime, timedelta, timezone
@@ -8,13 +7,29 @@ from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from jose import jwt
 
 load_dotenv()
 
-private_key = rsa.generate_private_key(
-    public_exponent=65537,
-    key_size=2048,
-)
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable is missing")
+
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_DAYS = 7
+
+PRIVATE_KEY_PEM = os.getenv("RSA_PRIVATE_KEY")
+
+if PRIVATE_KEY_PEM:
+    private_key = serialization.load_pem_private_key(
+        PRIVATE_KEY_PEM.encode("utf-8"),
+        password=None,
+    )
+else:
+    private_key = rsa.generate_private_key(
+        public_exponent=65537,
+        key_size=2048,
+    )
 
 public_key = private_key.public_key()
 
@@ -39,14 +54,9 @@ def sign_payload(payload: BaseModel) -> str:
     return base64.b64encode(signature).decode("utf-8")
 
 
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "fallback_temporary_secret_key_change_me")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_DAYS = 7
-
-
-def create_access_token(data: dict):
+def create_access_token(data: dict) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=ALGORITHM)
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt

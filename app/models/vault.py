@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from datetime import datetime
 from app.core.database import Base
 
 
@@ -19,6 +19,6 @@ class VideoVault(Base):
     aes_iv = Column(String, nullable=False)
     download_url = Column(String, nullable=True)
     status = Column(String, default="unused")
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     course = relationship("Course", back_populates="vault_items")

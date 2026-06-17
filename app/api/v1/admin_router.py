@@ -1,10 +1,13 @@
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 from typing import Optional, List
-from app.api.dependencies import get_db
+
+from app.api.dependencies import get_db, get_current_admin
+from app.core.errors import AppErrors
+from app.models.admin import Admin
 from app.models.course import Course, CourseNode
 from app.models.vault import VideoVault
 
@@ -62,7 +65,9 @@ class UpdateVaultUrlRequest(BaseModel):
 
 @router.post("/course", status_code=status.HTTP_201_CREATED)
 async def create_course(
-    request: CreateCourseRequest, db: AsyncSession = Depends(get_db)
+    request: CreateCourseRequest,
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
 ):
     new_course = Course(
         title=request.title,
@@ -76,18 +81,25 @@ async def create_course(
 
 
 @router.delete("/course/{course_id}", status_code=status.HTTP_200_OK)
-async def delete_course(course_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_course(
+    course_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
     query = await db.execute(select(Course).where(Course.id == course_id))
     course = query.scalars().first()
     if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
+        raise AppErrors.COURSE_NOT_FOUND
     await db.delete(course)
     await db.commit()
     return {"status": "success"}
 
 
 @router.get("/courses", status_code=status.HTTP_200_OK)
-async def get_all_courses(db: AsyncSession = Depends(get_db)):
+async def get_all_courses(
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
     query = await db.execute(select(Course).order_by(Course.id.desc()))
     courses = query.scalars().all()
     result = []
@@ -104,7 +116,11 @@ async def get_all_courses(db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/node", status_code=status.HTTP_201_CREATED)
-async def create_node(request: CreateNodeRequest, db: AsyncSession = Depends(get_db)):
+async def create_node(
+    request: CreateNodeRequest,
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
     if request.vault_id:
         v_query = await db.execute(
             select(VideoVault).where(VideoVault.id == request.vault_id)
@@ -131,12 +147,15 @@ async def create_node(request: CreateNodeRequest, db: AsyncSession = Depends(get
 
 @router.put("/node/{node_id}", status_code=status.HTTP_200_OK)
 async def update_node(
-    node_id: int, request: UpdateNodeRequest, db: AsyncSession = Depends(get_db)
+    node_id: int,
+    request: UpdateNodeRequest,
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
 ):
     query = await db.execute(select(CourseNode).where(CourseNode.id == node_id))
     node = query.scalars().first()
     if not node:
-        raise HTTPException(status_code=404, detail="Node not found")
+        raise AppErrors.NODE_NOT_FOUND
 
     if node.item_type == "video" and request.vault_id != node.vault_id:
         if node.vault_id:
@@ -167,11 +186,15 @@ async def update_node(
 
 
 @router.delete("/node/{node_id}", status_code=status.HTTP_200_OK)
-async def delete_node(node_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_node(
+    node_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
     query = await db.execute(select(CourseNode).where(CourseNode.id == node_id))
     node = query.scalars().first()
     if not node:
-        raise HTTPException(status_code=404, detail="Node not found")
+        raise AppErrors.NODE_NOT_FOUND
 
     if node.vault_id:
         v_q = await db.execute(select(VideoVault).where(VideoVault.id == node.vault_id))
@@ -185,11 +208,15 @@ async def delete_node(node_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/course/{course_id}", status_code=status.HTTP_200_OK)
-async def get_course_tree(course_id: int, db: AsyncSession = Depends(get_db)):
+async def get_course_tree(
+    course_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
     course_query = await db.execute(select(Course).where(Course.id == course_id))
     course = course_query.scalars().first()
     if not course:
-        raise HTTPException(status_code=404, detail="Course not found")
+        raise AppErrors.COURSE_NOT_FOUND
 
     nodes_query = await db.execute(
         select(CourseNode)
@@ -241,7 +268,9 @@ async def get_course_tree(course_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/vault/bulk", status_code=status.HTTP_201_CREATED)
 async def bulk_upload_vault(
-    request: VaultBulkUploadRequest, db: AsyncSession = Depends(get_db)
+    request: VaultBulkUploadRequest,
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
 ):
     for item in request.items:
         new_vault = VideoVault(
@@ -260,7 +289,10 @@ async def bulk_upload_vault(
 
 @router.get("/vault/{course_id}", status_code=status.HTTP_200_OK)
 async def get_vault_items(
-    course_id: int, status_filter: str = "unused", db: AsyncSession = Depends(get_db)
+    course_id: int,
+    status_filter: str = "unused",
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
 ):
     query = await db.execute(
         select(VideoVault).where(
@@ -287,23 +319,30 @@ async def get_vault_items(
 
 @router.put("/vault/{vault_id}/url", status_code=status.HTTP_200_OK)
 async def update_vault_url(
-    vault_id: int, request: UpdateVaultUrlRequest, db: AsyncSession = Depends(get_db)
+    vault_id: int,
+    request: UpdateVaultUrlRequest,
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
 ):
     query = await db.execute(select(VideoVault).where(VideoVault.id == vault_id))
     v_item = query.scalars().first()
     if not v_item:
-        raise HTTPException(status_code=404, detail="Vault item not found")
+        raise AppErrors.VAULT_ITEM_NOT_FOUND
     v_item.download_url = request.download_url
     await db.commit()
     return {"status": "success"}
 
 
 @router.delete("/vault/{vault_id}", status_code=status.HTTP_200_OK)
-async def delete_vault_item(vault_id: int, db: AsyncSession = Depends(get_db)):
+async def delete_vault_item(
+    vault_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
     query = await db.execute(select(VideoVault).where(VideoVault.id == vault_id))
     v_item = query.scalars().first()
     if not v_item:
-        raise HTTPException(status_code=404, detail="Vault item not found")
+        raise AppErrors.VAULT_ITEM_NOT_FOUND
     await db.delete(v_item)
     await db.commit()
     return {"status": "success"}
@@ -311,7 +350,10 @@ async def delete_vault_item(vault_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/vault/{course_id}/auto-build", status_code=status.HTTP_200_OK)
 async def auto_build_course_tree(
-    course_id: int, request: AutoBuildRequest, db: AsyncSession = Depends(get_db)
+    course_id: int,
+    request: AutoBuildRequest,
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
 ):
     query = await db.execute(
         select(VideoVault)
@@ -325,9 +367,7 @@ async def auto_build_course_tree(
     vault_items = query.scalars().all()
 
     if not vault_items:
-        raise HTTPException(
-            status_code=400, detail="No unused items found for this batch."
-        )
+        raise AppErrors.NO_UNUSED_VAULT_ITEMS
 
     folder_cache = {}
 

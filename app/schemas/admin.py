@@ -1,19 +1,21 @@
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
 
-class CreateCourseRequest(BaseModel):
-    title: str
-    watermark_text: Optional[str] = None
-    watermark_color: str = "rgba(255, 255, 255, 0.5)"
 
-class CreateSectionRequest(BaseModel):
-    course_id: int
-    title: str
-    sort_order: int = 0
+class AdminBase(BaseModel):
+    username: str
+    role: Optional[str] = "super_admin"
 
-class CreateVideoRequest(BaseModel):
-    section_id: int
-    title: str
-    duration: int
-    video_url: str
-    sort_order: int = 0
+
+class AdminCreate(AdminBase):
+    password: str
+
+
+class AdminResponse(AdminBase):
+    id: int
+    is_active: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

@@ -1,7 +1,13 @@
 from pydantic import BaseModel
 from typing import List
 
-class HeatmapPayload(BaseModel):
-    license_key: str
-    video_id: int
-    watched_seconds: List[int]
+
+class TelemetryEvent(BaseModel):
+    type: str
+    video: str
+    time: int
+    data: str
+
+
+class TelemetryBatch(BaseModel):
+    events: List[TelemetryEvent]
