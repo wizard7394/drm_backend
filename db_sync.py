@@ -2,26 +2,29 @@ import asyncio
 from sqlalchemy import text
 from app.core.database import engine, Base
 
-from app.models.user import User  # noqa: F401
-from app.models.device import HardwareDevice  # noqa: F401
-from app.models.license import License  # noqa: F401
-from app.models.transaction import Transaction  # noqa: F401
-from app.models.vault import VideoVault  # noqa: F401
-from app.models.course import Course, CourseNode  # noqa: F401
+# === Import ALL models to register them in SQLAlchemy ===
+from app.models.user import User
+from app.models.admin import Admin
+from app.models.device import Device
+from app.models.hardware_reset import HardwareReset
+from app.models.license import License
+from app.models.transaction import Transaction
+from app.models.vault import VideoVault
+from app.models.course import Course, CourseNode
+from app.models.security_log import UnauthorizedAttempt, BlacklistedHardware
 
 
 async def sync_database_architecture():
-    print("Initiating global database architecture sync for Video Vault...")
+    print("Initiating global database architecture sync for Postgres...")
 
     async with engine.begin() as conn:
-        print("Executing drop sequence for outdated course structures...")
-        await conn.execute(text("DROP TABLE IF EXISTS course_nodes CASCADE;"))
-        await conn.execute(text("DROP TABLE IF EXISTS video_vault CASCADE;"))
+        print("Executing DROP ALL TABLES sequence...")
+        await conn.run_sync(Base.metadata.drop_all)
 
-        print("Generating new Vault-connected tree architecture...")
+        print("Generating new Vault-connected tree architecture and Security Logs...")
         await conn.run_sync(Base.metadata.create_all)
 
-    print("Database sync completed! The Video Vault and Node tables are online.")
+    print("Database sync completed! All tables are online.")
 
 
 if __name__ == "__main__":

@@ -1,30 +1,80 @@
 import secrets
 import bcrypt
 from datetime import datetime, timedelta, timezone
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.models.user import User
 from app.models.admin import Admin
 from app.models.device import Device
-from app.schemas.auth import LoginRequest, VerifyRequest
+from app.models.security_log import UnauthorizedAttempt, BlacklistedHardware
+from app.schemas.auth import RequestOtpSchema, VerifyRequest
 from app.core.security import create_access_token
 from app.core.errors import AppErrors
 
 
 class AuthService:
     @staticmethod
-    async def request_otp(payload: LoginRequest, db: AsyncSession):
+    async def request_otp(payload: RequestOtpSchema, ip_address: str, db: AsyncSession):
+        now = datetime.now(timezone.utc)
+        hardware_id = payload.hardware_id
+
+        blacklisted_query = await db.execute(
+            select(BlacklistedHardware).where(
+                BlacklistedHardware.hardware_id == hardware_id
+            )
+        )
+        if blacklisted_query.scalars().first():
+            raise AppErrors.DEVICE_BLOCKED
+
+        one_hour_ago = now - timedelta(hours=1)
+        ip_count_query = await db.execute(
+            select(func.count(UnauthorizedAttempt.id))
+            .where(UnauthorizedAttempt.ip_address == ip_address)
+            .where(UnauthorizedAttempt.attempted_at >= one_hour_ago)
+        )
+        ip_attempts = ip_count_query.scalar() or 0
+
+        if ip_attempts >= 5:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="IP_RATE_LIMITED"
+            )
+
         user_query = await db.execute(select(User).where(User.mobile == payload.mobile))
         user = user_query.scalars().first()
 
         if not user or not user.is_active:
+            attempt = UnauthorizedAttempt(
+                mobile=payload.mobile,
+                hardware_id=hardware_id,
+                ip_address=ip_address,
+                attempted_at=now,
+            )
+            db.add(attempt)
+            await db.flush()
+
+            hw_count_query = await db.execute(
+                select(func.count(UnauthorizedAttempt.id)).where(
+                    UnauthorizedAttempt.hardware_id == hardware_id
+                )
+            )
+            hw_attempts = hw_count_query.scalar() or 0
+
+            if hw_attempts >= 3:
+                blacklist_entry = BlacklistedHardware(
+                    hardware_id=hardware_id,
+                    reason="Too many unauthorized login attempts",
+                )
+                db.add(blacklist_entry)
+
+            await db.commit()
             raise AppErrors.USER_NOT_FOUND
 
         secure_otp = "".join(str(secrets.randbelow(10)) for _ in range(6))
 
         user.otp_code = secure_otp
-        user.otp_expire = datetime.now(timezone.utc) + timedelta(minutes=2)
+        user.otp_expire = now + timedelta(minutes=2)
 
         await db.commit()
 

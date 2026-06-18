@@ -5,6 +5,7 @@ from app.models.license import License
 from app.models.device import Device
 from app.models.transaction import Transaction
 from app.models.vault import VideoVault
+from .security_log import UnauthorizedAttempt, BlacklistedHardware
 
 __all__ = [
     "User",
@@ -15,4 +16,6 @@ __all__ = [
     "Device",
     "Transaction",
     "VideoVault",
+    "UnauthorizedAttempt",
+    "BlacklistedHardware",
 ]
