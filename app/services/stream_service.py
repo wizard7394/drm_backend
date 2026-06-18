@@ -26,8 +26,12 @@ class StreamService:
         if not db_license:
             raise AppErrors.COURSE_ACCESS_DENIED
 
-        if db_license.expires_at and db_license.expires_at < datetime.now(timezone.utc):
-            raise AppErrors.LICENSE_EXPIRED
+        if db_license.expires_at:
+            expire_time = db_license.expires_at
+            if expire_time.tzinfo is None:
+                expire_time = expire_time.replace(tzinfo=timezone.utc)
+            if expire_time < datetime.now(timezone.utc):
+                raise AppErrors.LICENSE_EXPIRED
 
         video_query = await db.execute(
             select(CourseNode)

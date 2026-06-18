@@ -3,7 +3,6 @@ import hmac
 import hashlib
 import base64
 import json
-import secrets
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -12,6 +11,7 @@ from app.models.user import User
 from app.models.license import License
 from app.models.transaction import Transaction
 from app.core.errors import AppErrors
+from app.services.license_service import generate_license_key
 
 WOOCOMMERCE_SECRET = os.getenv("WOOCOMMERCE_SECRET")
 
@@ -60,7 +60,7 @@ class WebhookService:
 
         generated_licenses = []
         for item in order.line_items:
-            license_key = secrets.token_hex(16).upper()
+            license_key = generate_license_key()
 
             new_license = License(
                 user_id=user.id, course_id=item.product_id, license_key=license_key
