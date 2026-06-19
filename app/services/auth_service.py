@@ -8,7 +8,10 @@ from sqlalchemy import select, func
 from app.models.user import User
 from app.models.admin import Admin
 from app.models.device import Device
+from app.models.hardware_reset import HardwareReset  # noqa: F401
+from app.models.license import License  # noqa: F401
 from app.models.security_log import UnauthorizedAttempt, BlacklistedHardware
+
 from app.schemas.auth import RequestOtpSchema, VerifyRequest
 from app.core.security import create_access_token
 from app.core.errors import AppErrors
@@ -20,6 +23,7 @@ class AuthService:
         now = datetime.now(timezone.utc)
         hardware_id = payload.hardware_id
 
+        # ۱. گارد اول: بررسی بلک‌لیست دائم سخت‌افزار
         blacklisted_query = await db.execute(
             select(BlacklistedHardware).where(
                 BlacklistedHardware.hardware_id == hardware_id
@@ -28,6 +32,7 @@ class AuthService:
         if blacklisted_query.scalars().first():
             raise AppErrors.DEVICE_BLOCKED
 
+        # ۲. گارد دوم: بررسی لیمیت موقت آی‌پی (نهایتا ۵ بار در یک ساعت)
         one_hour_ago = now - timedelta(hours=1)
         ip_count_query = await db.execute(
             select(func.count(UnauthorizedAttempt.id))
@@ -41,6 +46,7 @@ class AuthService:
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="IP_RATE_LIMITED"
             )
 
+        # ۳. بررسی وجود کاربر (مشتری واقعی)
         user_query = await db.execute(select(User).where(User.mobile == payload.mobile))
         user = user_query.scalars().first()
 
@@ -71,6 +77,7 @@ class AuthService:
             await db.commit()
             raise AppErrors.USER_NOT_FOUND
 
+        # ۴. مسیر سبز: ساخت و ارسال OTP برای کاربر مجاز
         secure_otp = "".join(str(secrets.randbelow(10)) for _ in range(6))
 
         user.otp_code = secure_otp

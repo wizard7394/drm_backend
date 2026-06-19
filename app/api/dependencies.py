@@ -1,19 +1,23 @@
 from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
 from app.core.security import ALGORITHM, SECRET_KEY
 from app.core.database import get_db
 from app.models.user import User
 from app.models.admin import Admin
 from app.models.device import Device
+from app.models.hardware_reset import HardwareReset # noqa: F401
+from app.models.license import License # noqa: F401
+from app.models.security_log import UnauthorizedAttempt, BlacklistedHardware # noqa: F401
 from app.core.errors import AppErrors
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 
-
-def get_current_user(
-    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+async def get_current_user(
+    token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)
 ):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -28,16 +32,21 @@ def get_current_user(
     except JWTError:
         raise AppErrors.INVALID_TOKEN
 
-    user = db.query(User).filter(User.mobile == mobile).first()
+    # تبدیل .query به select برای دیتابیس Async
+    result = await db.execute(select(User).where(User.mobile == mobile))
+    user = result.scalars().first()
+
     if user is None or not user.is_active:
         raise AppErrors.USER_NOT_FOUND
 
     if hardware_id:
-        device = (
-            db.query(Device)
-            .filter(Device.user_id == user.id, Device.hardware_id == hardware_id)
-            .first()
+        dev_result = await db.execute(
+            select(Device).where(
+                Device.user_id == user.id, 
+                Device.hardware_id == hardware_id
+            )
         )
+        device = dev_result.scalars().first()
 
         if device is None:
             raise AppErrors.HARDWARE_MISMATCH
@@ -47,8 +56,8 @@ def get_current_user(
     return user
 
 
-def get_current_admin(
-    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+async def get_current_admin(
+    token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)
 ):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -63,7 +72,10 @@ def get_current_admin(
     except JWTError:
         raise AppErrors.INVALID_TOKEN
 
-    admin = db.query(Admin).filter(Admin.username == username).first()
+    # تبدیل .query به select برای دیتابیس Async
+    result = await db.execute(select(Admin).where(Admin.username == username))
+    admin = result.scalars().first()
+    
     if admin is None or not admin.is_active:
         raise AppErrors.ADMIN_NOT_FOUND
 
