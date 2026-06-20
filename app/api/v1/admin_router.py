@@ -55,6 +55,10 @@ class VaultBulkUploadRequest(BaseModel):
     items: List[VaultItemPayload]
 
 
+class BlockDeviceRequest(BaseModel):
+    is_blocked: bool
+
+
 @router.get("/stats")
 async def get_dashboard_stats(
     db: AsyncSession = Depends(get_db), admin: Admin = Depends(get_current_admin)
@@ -88,6 +92,7 @@ async def get_all_devices(
                 "id": device.id,
                 "hardware_id": device.hardware_id,
                 "short_hash": device.hardware_id[:12] + "...",
+                "system_specs": device.system_specs or "مشخصات ثبت نشده",
                 "mobile": mobile,
                 "is_blocked": device.is_blocked,
                 "last_login": device.last_login,
@@ -121,6 +126,25 @@ async def unblock_device(
     await db.delete(item)
     await db.commit()
     return {"status": "success"}
+
+
+@router.put("/devices/{device_id}/block")
+async def toggle_device_block(
+    device_id: int,
+    request: BlockDeviceRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: Admin = Depends(get_current_admin),
+):
+    query = await db.execute(select(Device).where(Device.id == device_id))
+    device = query.scalars().first()
+
+    if not device:
+        raise AppErrors.DEVICE_NOT_FOUND
+
+    device.is_blocked = request.is_blocked
+    await db.commit()
+
+    return {"status": "success", "is_blocked": device.is_blocked}
 
 
 @router.get("/courses")

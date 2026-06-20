@@ -10,6 +10,7 @@ class Device(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     hardware_id = Column(String, index=True, nullable=False)
+    system_specs = Column(String, nullable=True)
     os_type = Column(String, nullable=True)
     device_name = Column(String, nullable=True)
     is_blocked = Column(Boolean, default=False)

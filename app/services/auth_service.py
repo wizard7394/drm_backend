@@ -16,23 +16,25 @@ from app.schemas.auth import RequestOtpSchema, VerifyRequest
 from app.core.security import create_access_token
 from app.core.errors import AppErrors
 
-
 class AuthService:
     @staticmethod
     async def request_otp(payload: RequestOtpSchema, ip_address: str, db: AsyncSession):
         now = datetime.now(timezone.utc)
         hardware_id = payload.hardware_id
 
-        # ۱. گارد اول: بررسی بلک‌لیست دائم سخت‌افزار
         blacklisted_query = await db.execute(
-            select(BlacklistedHardware).where(
-                BlacklistedHardware.hardware_id == hardware_id
-            )
+            select(BlacklistedHardware).where(BlacklistedHardware.hardware_id == hardware_id)
         )
         if blacklisted_query.scalars().first():
             raise AppErrors.DEVICE_BLOCKED
 
-        # ۲. گارد دوم: بررسی لیمیت موقت آی‌پی (نهایتا ۵ بار در یک ساعت)
+        device_query = await db.execute(
+            select(Device).where(Device.hardware_id == hardware_id)
+        )
+        existing_device = device_query.scalars().first()
+        if existing_device and existing_device.is_blocked:
+            raise AppErrors.DEVICE_BLOCKED
+
         one_hour_ago = now - timedelta(hours=1)
         ip_count_query = await db.execute(
             select(func.count(UnauthorizedAttempt.id))
@@ -43,10 +45,10 @@ class AuthService:
 
         if ip_attempts >= 5:
             raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="IP_RATE_LIMITED"
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="IP_RATE_LIMITED"
             )
 
-        # ۳. بررسی وجود کاربر (مشتری واقعی)
         user_query = await db.execute(select(User).where(User.mobile == payload.mobile))
         user = user_query.scalars().first()
 
@@ -55,31 +57,29 @@ class AuthService:
                 mobile=payload.mobile,
                 hardware_id=hardware_id,
                 ip_address=ip_address,
-                attempted_at=now,
+                attempted_at=now
             )
             db.add(attempt)
             await db.flush()
 
             hw_count_query = await db.execute(
-                select(func.count(UnauthorizedAttempt.id)).where(
-                    UnauthorizedAttempt.hardware_id == hardware_id
-                )
+                select(func.count(UnauthorizedAttempt.id))
+                .where(UnauthorizedAttempt.hardware_id == hardware_id)
             )
             hw_attempts = hw_count_query.scalar() or 0
 
             if hw_attempts >= 3:
                 blacklist_entry = BlacklistedHardware(
                     hardware_id=hardware_id,
-                    reason="Too many unauthorized login attempts",
+                    reason="Too many unauthorized login attempts"
                 )
                 db.add(blacklist_entry)
 
             await db.commit()
             raise AppErrors.USER_NOT_FOUND
 
-        # ۴. مسیر سبز: ساخت و ارسال OTP برای کاربر مجاز
         secure_otp = "".join(str(secrets.randbelow(10)) for _ in range(6))
-
+        
         user.otp_code = secure_otp
         user.otp_expire = now + timedelta(minutes=2)
 
@@ -118,6 +118,7 @@ class AuthService:
             current_device = Device(
                 user_id=user.id,
                 hardware_id=payload.hardware_id,
+                system_specs=payload.system_specs
             )
             db.add(current_device)
             await db.flush()
@@ -125,6 +126,7 @@ class AuthService:
             for d in user_devices:
                 if d.hardware_id == payload.hardware_id:
                     current_device = d
+                    current_device.system_specs = payload.system_specs
                     break
 
             if not current_device:
