@@ -3,14 +3,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from pydantic import BaseModel
 from typing import Optional, List
-
+from sqlalchemy.orm import selectinload
 from app.api.dependencies import get_db, get_current_admin
 from app.core.errors import AppErrors
 from app.models.admin import Admin
 from app.models.course import Course, CourseNode
 from app.models.vault import VideoVault
 from app.models.device import Device
-from app.models.security_log import BlacklistedHardware
+from app.models.security_log import BlacklistedHardware, DeviceAuditLog
 from app.models.hardware_reset import HardwareReset  # noqa: F401
 from app.models.license import License  # noqa: F401
 from app.models.transaction import Transaction  # noqa: F401
@@ -57,6 +57,11 @@ class VaultBulkUploadRequest(BaseModel):
 
 class BlockDeviceRequest(BaseModel):
     is_blocked: bool
+    reason: str
+
+
+class UnblockRequest(BaseModel):
+    reason: str
 
 
 @router.get("/stats")
@@ -121,9 +126,16 @@ async def unblock_device(
         )
     )
     item = query.scalars().first()
-    if not item:
-        raise AppErrors.DEVICE_NOT_FOUND
-    await db.delete(item)
+    if item:
+        await db.delete(item)
+
+    device_query = await db.execute(
+        select(Device).where(Device.hardware_id == hardware_id)
+    )
+    devices = device_query.scalars().all()
+    for d in devices:
+        d.is_blocked = False
+
     await db.commit()
     return {"status": "success"}
 
@@ -135,16 +147,81 @@ async def toggle_device_block(
     db: AsyncSession = Depends(get_db),
     admin: Admin = Depends(get_current_admin),
 ):
-    query = await db.execute(select(Device).where(Device.id == device_id))
+    query = await db.execute(
+        select(Device).options(selectinload(Device.user)).where(Device.id == device_id)
+    )
     device = query.scalars().first()
 
     if not device:
         raise AppErrors.DEVICE_NOT_FOUND
 
     device.is_blocked = request.is_blocked
-    await db.commit()
+    hw_id = device.hardware_id
 
+    bl_query = await db.execute(
+        select(BlacklistedHardware).where(BlacklistedHardware.hardware_id == hw_id)
+    )
+    bl_entry = bl_query.scalars().first()
+
+    if request.is_blocked:
+        if not bl_entry:
+            db.add(BlacklistedHardware(hardware_id=hw_id, reason=request.reason))
+    else:
+        if bl_entry:
+            await db.delete(bl_entry)
+
+    action_type = "MANUAL_BLOCK" if request.is_blocked else "MANUAL_UNBLOCK"
+    audit_log = DeviceAuditLog(
+        mobile=device.user.mobile if device.user else "Unknown",
+        hardware_id=hw_id,
+        action=action_type,
+        reason=f"Admin: {request.reason}",
+    )
+    db.add(audit_log)
+
+    await db.commit()
     return {"status": "success", "is_blocked": device.is_blocked}
+
+
+@router.post("/security/blacklist/{hardware_id}/unblock")
+async def unblock_device_from_blacklist(
+    hardware_id: str,
+    request: UnblockRequest,
+    db: AsyncSession = Depends(get_db),
+    admin: Admin = Depends(get_current_admin),
+):
+    query = await db.execute(
+        select(BlacklistedHardware).where(
+            BlacklistedHardware.hardware_id == hardware_id
+        )
+    )
+    item = query.scalars().first()
+    if item:
+        await db.delete(item)
+
+    device_query = await db.execute(
+        select(Device)
+        .options(selectinload(Device.user))
+        .where(Device.hardware_id == hardware_id)
+    )
+    devices = device_query.scalars().all()
+    mobile_number = "Unknown"
+
+    for d in devices:
+        d.is_blocked = False
+        if d.user:
+            mobile_number = d.user.mobile
+
+    audit_log = DeviceAuditLog(
+        mobile=mobile_number,
+        hardware_id=hardware_id,
+        action="MANUAL_UNBLOCK",
+        reason=f"Admin: {request.reason}",
+    )
+    db.add(audit_log)
+
+    await db.commit()
+    return {"status": "success"}
 
 
 @router.get("/courses")

@@ -16,14 +16,22 @@ from app.schemas.auth import RequestOtpSchema, VerifyRequest
 from app.core.security import create_access_token
 from app.core.errors import AppErrors
 
+
+# Helper to generate timezone-naive UTC datetime for asyncpg compatibility
+def get_naive_utc_now():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 class AuthService:
     @staticmethod
     async def request_otp(payload: RequestOtpSchema, ip_address: str, db: AsyncSession):
-        now = datetime.now(timezone.utc)
+        now = get_naive_utc_now()
         hardware_id = payload.hardware_id
 
         blacklisted_query = await db.execute(
-            select(BlacklistedHardware).where(BlacklistedHardware.hardware_id == hardware_id)
+            select(BlacklistedHardware).where(
+                BlacklistedHardware.hardware_id == hardware_id
+            )
         )
         if blacklisted_query.scalars().first():
             raise AppErrors.DEVICE_BLOCKED
@@ -45,8 +53,7 @@ class AuthService:
 
         if ip_attempts >= 5:
             raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="IP_RATE_LIMITED"
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="IP_RATE_LIMITED"
             )
 
         user_query = await db.execute(select(User).where(User.mobile == payload.mobile))
@@ -57,21 +64,22 @@ class AuthService:
                 mobile=payload.mobile,
                 hardware_id=hardware_id,
                 ip_address=ip_address,
-                attempted_at=now
+                attempted_at=now,
             )
             db.add(attempt)
             await db.flush()
 
             hw_count_query = await db.execute(
-                select(func.count(UnauthorizedAttempt.id))
-                .where(UnauthorizedAttempt.hardware_id == hardware_id)
+                select(func.count(UnauthorizedAttempt.id)).where(
+                    UnauthorizedAttempt.hardware_id == hardware_id
+                )
             )
             hw_attempts = hw_count_query.scalar() or 0
 
             if hw_attempts >= 3:
                 blacklist_entry = BlacklistedHardware(
                     hardware_id=hardware_id,
-                    reason="Too many unauthorized login attempts"
+                    reason="Too many unauthorized login attempts",
                 )
                 db.add(blacklist_entry)
 
@@ -79,7 +87,7 @@ class AuthService:
             raise AppErrors.USER_NOT_FOUND
 
         secure_otp = "".join(str(secrets.randbelow(10)) for _ in range(6))
-        
+
         user.otp_code = secure_otp
         user.otp_expire = now + timedelta(minutes=2)
 
@@ -100,11 +108,14 @@ class AuthService:
         if not user.otp_code or user.otp_code != payload.code:
             raise AppErrors.INVALID_OTP
 
+        now_naive = get_naive_utc_now()
         expire_time = user.otp_expire
-        if expire_time and expire_time.tzinfo is None:
-            expire_time = expire_time.replace(tzinfo=timezone.utc)
 
-        if not expire_time or datetime.now(timezone.utc) > expire_time:
+        # Neutralize any timezone info if present in the database record
+        if expire_time and expire_time.tzinfo is not None:
+            expire_time = expire_time.replace(tzinfo=None)
+
+        if not expire_time or now_naive > expire_time:
             raise AppErrors.OTP_EXPIRED
 
         user.otp_code = None
@@ -118,7 +129,7 @@ class AuthService:
             current_device = Device(
                 user_id=user.id,
                 hardware_id=payload.hardware_id,
-                system_specs=payload.system_specs
+                system_specs=payload.system_specs,
             )
             db.add(current_device)
             await db.flush()
@@ -135,7 +146,7 @@ class AuthService:
         if current_device.is_blocked:
             raise AppErrors.DEVICE_BLOCKED
 
-        current_device.last_login = datetime.now(timezone.utc)
+        current_device.last_login = now_naive
         await db.commit()
 
         access_token = create_access_token(

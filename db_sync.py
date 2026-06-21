@@ -11,7 +11,11 @@ from app.models.license import License
 from app.models.transaction import Transaction
 from app.models.vault import VideoVault
 from app.models.course import Course, CourseNode
-from app.models.security_log import UnauthorizedAttempt, BlacklistedHardware
+from app.models.security_log import (
+    UnauthorizedAttempt,
+    BlacklistedHardware,
+    DeviceAuditLog,
+)
 
 
 async def sync_database_architecture():
