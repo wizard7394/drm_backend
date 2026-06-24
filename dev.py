@@ -5,7 +5,6 @@ if __name__ == "__main__":
         "app.main:app",
         host="0.0.0.0",
         port=8000,
-        reload=False,
-        access_log=False,
-        log_level="warning",
+        reload=True,
+        reload_dirs=["app"],
     )
