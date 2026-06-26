@@ -9,12 +9,14 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.admin import Admin
 from app.models.device import Device
-from app.models.hardware_reset import HardwareReset # noqa: F401
-from app.models.license import License # noqa: F401
-from app.models.security_log import UnauthorizedAttempt, BlacklistedHardware # noqa: F401
+from app.models.hardware_reset import HardwareReset  # noqa: F401
+from app.models.license import License  # noqa: F401
+from app.models.security_log import UnauthorizedAttempt, BlacklistedHardware  # noqa: F401
 from app.core.errors import AppErrors
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+# آدرس دقیق و کامل روت لاگین ادمین با اسلش اولیه اصلاح شد
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/admin/login")
+
 
 async def get_current_user(
     token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)
@@ -32,7 +34,6 @@ async def get_current_user(
     except JWTError:
         raise AppErrors.INVALID_TOKEN
 
-    # تبدیل .query به select برای دیتابیس Async
     result = await db.execute(select(User).where(User.mobile == mobile))
     user = result.scalars().first()
 
@@ -42,8 +43,7 @@ async def get_current_user(
     if hardware_id:
         dev_result = await db.execute(
             select(Device).where(
-                Device.user_id == user.id, 
-                Device.hardware_id == hardware_id
+                Device.user_id == user.id, Device.hardware_id == hardware_id
             )
         )
         device = dev_result.scalars().first()
@@ -72,10 +72,9 @@ async def get_current_admin(
     except JWTError:
         raise AppErrors.INVALID_TOKEN
 
-    # تبدیل .query به select برای دیتابیس Async
     result = await db.execute(select(Admin).where(Admin.username == username))
     admin = result.scalars().first()
-    
+
     if admin is None or not admin.is_active:
         raise AppErrors.ADMIN_NOT_FOUND
 

@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.api.dependencies import get_db, get_current_user
+from app.api.dependencies import get_db, get_current_user, get_current_admin
 from app.models.user import User
+from app.models.admin import Admin
 from app.services.course_service import CourseService
 from app.schemas.course import (
     CourseCreate,
@@ -17,7 +18,7 @@ router = APIRouter()
 @router.get("/admin/list")
 async def get_all_courses_for_admin(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_admin: Admin = Depends(get_current_admin),
 ):
     return await CourseService.get_all_courses_admin(db)
 
@@ -26,7 +27,7 @@ async def get_all_courses_for_admin(
 async def create_new_course(
     data: CourseCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_admin: Admin = Depends(get_current_admin),
 ):
     return await CourseService.create_course(data, db)
 
@@ -36,7 +37,7 @@ async def update_existing_course(
     course_id: int,
     data: CourseUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_admin: Admin = Depends(get_current_admin),
 ):
     return await CourseService.update_course(course_id, data, db)
 
@@ -45,7 +46,7 @@ async def update_existing_course(
 async def delete_existing_course(
     course_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_admin: Admin = Depends(get_current_admin),
 ):
     return await CourseService.delete_course(course_id, db)
 
@@ -54,7 +55,7 @@ async def delete_existing_course(
 async def create_course_node(
     data: NodeCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_admin: Admin = Depends(get_current_admin),
 ):
     return await CourseService.create_node(data, db)
 
@@ -64,7 +65,7 @@ async def update_course_node(
     node_id: int,
     data: NodeUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_admin: Admin = Depends(get_current_admin),
 ):
     return await CourseService.update_node(node_id, data, db)
 
@@ -73,7 +74,7 @@ async def update_course_node(
 async def delete_course_node(
     node_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_admin: Admin = Depends(get_current_admin),
 ):
     return await CourseService.delete_node(node_id, db)
 
@@ -82,15 +83,17 @@ async def delete_course_node(
 async def auto_build_course_nodes(
     data: AutoBuildRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_admin: Admin = Depends(get_current_admin),
 ):
     return await CourseService.auto_build_course(data, db)
 
 
-@router.get("/view/{course_id}")  # تغییر از {course_id} به view/{course_id}
+@router.get("/view/{course_id}")
 async def get_course_details(
     course_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(
+        get_current_user
+    ),  # اینجا برای دانشجوهاست و همون یوزر می‌مونه
 ):
     return await CourseService.get_course_details(course_id, current_user, db)
