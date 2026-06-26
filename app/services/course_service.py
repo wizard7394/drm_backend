@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
 
@@ -7,6 +7,13 @@ from app.models.course import Course, CourseNode
 from app.models.license import License
 from app.models.user import User
 from app.core.errors import AppErrors
+from app.schemas.course import (
+    CourseCreate,
+    CourseUpdate,
+    NodeCreate,
+    NodeUpdate,
+    AutoBuildRequest,
+)
 
 
 class CourseService:
@@ -84,4 +91,128 @@ class CourseService:
             "watermark_text": course_obj.watermark_text,
             "watermark_color": course_obj.watermark_color,
             "tree": tree,
+        }
+
+    @staticmethod
+    async def get_all_courses_admin(db: AsyncSession):
+        courses_query = await db.execute(select(Course).order_by(Course.id.desc()))
+        courses = courses_query.scalars().all()
+
+        result = []
+        for c in courses:
+            students_query = await db.execute(
+                select(func.count(License.id)).where(License.course_id == c.id)
+            )
+            students_count = students_query.scalar() or 0
+
+            videos_query = await db.execute(
+                select(func.count(CourseNode.id)).where(
+                    CourseNode.course_id == c.id, CourseNode.item_type == "video"
+                )
+            )
+            videos_count = videos_query.scalar() or 0
+
+            result.append(
+                {
+                    "id": c.id,
+                    "title": c.title,
+                    "is_active": c.is_active,
+                    "total_students": students_count,
+                    "total_videos": videos_count,
+                }
+            )
+        return result
+
+    @staticmethod
+    async def create_course(data: CourseCreate, db: AsyncSession):
+        new_course = Course(
+            title=data.title,
+            watermark_text=data.watermark_text,
+            watermark_color=data.watermark_color,
+            is_active=data.is_active,
+        )
+        db.add(new_course)
+        await db.commit()
+        await db.refresh(new_course)
+        return new_course
+
+    @staticmethod
+    async def update_course(course_id: int, data: CourseUpdate, db: AsyncSession):
+        course_query = await db.execute(select(Course).where(Course.id == course_id))
+        course = course_query.scalars().first()
+
+        if not course:
+            raise AppErrors.COURSE_NOT_FOUND
+
+        update_data = data.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(course, key, value)
+
+        await db.commit()
+        await db.refresh(course)
+        return course
+
+    @staticmethod
+    async def delete_course(course_id: int, db: AsyncSession):
+        course_query = await db.execute(select(Course).where(Course.id == course_id))
+        course = course_query.scalars().first()
+        if not course:
+            raise AppErrors.COURSE_NOT_FOUND
+
+        await db.delete(course)
+        await db.commit()
+        return {"status": "success", "message": "Course deleted permanently"}
+
+    @staticmethod
+    async def create_node(data: NodeCreate, db: AsyncSession):
+        new_node = CourseNode(
+            course_id=data.course_id,
+            parent_id=data.parent_id,
+            item_type=data.item_type,
+            title=data.title,
+            sort_order=data.sort_order,
+            video_url=data.video_url,
+            duration=data.duration,
+            attachment_url=data.attachment_url,
+            vault_id=data.vault_id,
+        )
+        db.add(new_node)
+        await db.commit()
+        await db.refresh(new_node)
+        return {"status": "success", "node_id": new_node.id}
+
+    @staticmethod
+    async def update_node(node_id: int, data: NodeUpdate, db: AsyncSession):
+        node_query = await db.execute(
+            select(CourseNode).where(CourseNode.id == node_id)
+        )
+        node = node_query.scalars().first()
+        if not node:
+            raise Exception("Node missing from database")
+
+        update_data = data.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(node, key, value)
+
+        await db.commit()
+        return {"status": "success"}
+
+    @staticmethod
+    async def delete_node(node_id: int, db: AsyncSession):
+        node_query = await db.execute(
+            select(CourseNode).where(CourseNode.id == node_id)
+        )
+        node = node_query.scalars().first()
+        if not node:
+            raise Exception("Node missing from database")
+
+        await db.delete(node)
+        await db.commit()
+        return {"status": "success"}
+
+    @staticmethod
+    async def auto_build_course(data: AutoBuildRequest, db: AsyncSession):
+        return {
+            "status": "success",
+            "message": f"Auto-build initiated for batch: {data.batch_name}",
         }
