@@ -97,3 +97,12 @@ async def get_course_details(
     ),  # اینجا برای دانشجوهاست و همون یوزر می‌مونه
 ):
     return await CourseService.get_course_details(course_id, current_user, db)
+
+
+@router.get("/admin/view/{course_id}")
+async def get_course_tree_for_admin(
+    course_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin),
+):
+    return await CourseService.get_course_tree_admin(course_id, db)
