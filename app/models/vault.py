@@ -1,24 +1,12 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
-from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
-from app.core.database import Base
+from sqlalchemy import Column, Integer, String
+from app.core.database import VaultBase
 
 
-class VideoVault(Base):
-    __tablename__ = "video_vault"
+class VaultItem(VaultBase):
+    __tablename__ = "vault_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    course_id = Column(
-        Integer, ForeignKey("courses.id", ondelete="CASCADE"), nullable=False
-    )
-    batch_name = Column(String, index=True, nullable=False)
-    uuid = Column(String, unique=True, index=True, nullable=False)
-    original_filename = Column(String, nullable=True)
-    file_hash = Column(String, nullable=False)
-    aes_key = Column(String, nullable=False)
-    aes_iv = Column(String, nullable=False)
-    download_url = Column(String, nullable=True)
-    status = Column(String, default="unused")
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    course = relationship("Course", back_populates="vault_items")
+    uuid = Column(String, unique=True, index=True)
+    file_hash = Column(String, index=True)
+    download_url = Column(String)
+    decryption_key = Column(String)

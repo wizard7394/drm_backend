@@ -4,7 +4,7 @@ from app.models.course import Course, CourseNode
 from app.models.license import License
 from app.models.device import Device
 from app.models.transaction import Transaction
-from app.models.vault import VideoVault
+from app.models.vault import VaultItem
 from .security_log import UnauthorizedAttempt, BlacklistedHardware
 
 __all__ = [
@@ -15,7 +15,7 @@ __all__ = [
     "License",
     "Device",
     "Transaction",
-    "VideoVault",
+    "VaultItem",
     "UnauthorizedAttempt",
     "BlacklistedHardware",
 ]

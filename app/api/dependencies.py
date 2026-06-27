@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.security import ALGORITHM, SECRET_KEY
-from app.core.database import get_db
+from app.core.database import get_db, get_vault_db  # noqa: F401
 from app.models.user import User
 from app.models.admin import Admin
 from app.models.device import Device
@@ -14,7 +14,6 @@ from app.models.license import License  # noqa: F401
 from app.models.security_log import UnauthorizedAttempt, BlacklistedHardware  # noqa: F401
 from app.core.errors import AppErrors
 
-# آدرس دقیق و کامل روت لاگین ادمین با اسلش اولیه اصلاح شد
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/admin/login")
 
 
