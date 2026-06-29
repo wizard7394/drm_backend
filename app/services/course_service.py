@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
+import re
 
 from app.models.course import Course, CourseNode
 from app.models.license import License
@@ -281,10 +282,99 @@ class CourseService:
 
     @staticmethod
     async def auto_build_course(data: AutoBuildRequest, vault_db: AsyncSession):
+        DOWNLOAD_HOST_BASE = "https://cdn.nabegheha.com"
+
+        course_check = await vault_db.execute(
+            select(Course).where(Course.id == data.course_id)
+        )
+        if not course_check.scalars().first():
+            new_c = Course(
+                id=data.course_id,
+                title=f"Auto Generated Course {data.course_id}",
+                is_active=True,
+            )
+            vault_db.add(new_c)
+            await vault_db.flush()
+
+        await vault_db.execute(
+            text(f"DELETE FROM course_nodes WHERE course_id = {data.course_id}")
+        )
+        await vault_db.commit()
+
+        search_term = f"/{data.batch_name}/%"
+        vault_query = await vault_db.execute(
+            select(VaultItem).where(VaultItem.download_url.like(search_term))
+        )
+        vault_items = vault_query.scalars().all()
+
+        if not vault_items:
+            return {
+                "status": "error",
+                "message": f"No records found in database for batch: {data.batch_name}",
+            }
+
+        folders_map = {}
+        vault_items_sorted = sorted(vault_items, key=lambda x: x.download_url)
+        sort_idx = 1
+
+        for item in vault_items_sorted:
+            rel_path = item.download_url.replace(f"/{data.batch_name}/", "")
+            parts = rel_path.split("/")
+
+            file_name = parts[-1]
+            folder_parts = parts[:-1]
+
+            parent_id = None
+            current_folder_path = ""
+
+            for folder in folder_parts:
+                current_folder_path = (
+                    f"{current_folder_path}/{folder}" if current_folder_path else folder
+                )
+                if current_folder_path not in folders_map:
+                    clean_folder = re.sub(r"^[\d\.\-_]+", "", folder).strip() or folder
+                    folder_node = CourseNode(
+                        course_id=data.course_id,
+                        parent_id=parent_id,
+                        item_type="folder",
+                        title=clean_folder,
+                        sort_order=len(folders_map) + 1,
+                    )
+                    vault_db.add(folder_node)
+                    await vault_db.flush()
+                    folders_map[current_folder_path] = folder_node.id
+
+                parent_id = folders_map[current_folder_path]
+
+            clean_file = re.sub(r"^[\d\.\-_]+", "", file_name)
+            title = clean_file.rsplit(".", 1)[0].strip() or file_name
+
+            video_node = CourseNode(
+                course_id=data.course_id,
+                parent_id=parent_id,
+                item_type="video",
+                title=title,
+                sort_order=sort_idx,
+                video_url=f"{DOWNLOAD_HOST_BASE}{item.download_url}",
+                vault_id=item.id,
+            )
+            vault_db.add(video_node)
+            sort_idx += 1
+
+        await vault_db.commit()
         return {
             "status": "success",
-            "message": f"Auto-build initiated for batch: {data.batch_name}",
+            "message": f"Course tree generated successfully with {len(vault_items_sorted)} nodes.",
         }
+
+    @staticmethod
+    async def auto_build_course_by_vault(
+        course_id: int, batch_name: str, vault_db: AsyncSession
+    ):
+        # این دقیقاً همون منطقی هست که برات نوشتم
+        # فقط کافیه صداش بزنی تا دیتابیس رو بخونه و درخت رو بسازه
+        data = AutoBuildRequest(course_id=course_id, batch_name=batch_name)
+        return await CourseService.auto_build_course(data, vault_db)
 
     @staticmethod
     async def export_vault_data(vault_db: AsyncSession):

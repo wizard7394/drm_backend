@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends
+from typing import List
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import (
     get_db,
@@ -8,6 +10,7 @@ from app.api.dependencies import (
 )
 from app.models.user import User
 from app.models.admin import Admin
+from pydantic import BaseModel
 from app.services.course_service import CourseService
 from app.schemas.course import (
     CourseCreate,
@@ -16,6 +19,7 @@ from app.schemas.course import (
     NodeUpdate,
     AutoBuildRequest,
 )
+
 
 router = APIRouter()
 
@@ -128,3 +132,54 @@ async def get_course_details(
     current_user: User = Depends(get_current_user),
 ):
     return await CourseService.get_course_details(course_id, current_user, db, vault_db)
+
+
+class CourseUpdateRequest(BaseModel):
+    title: str
+    is_active: bool
+
+
+@router.put("/admin/update/{course_id}")
+async def update_course(
+    course_id: int,
+    data: CourseUpdateRequest,
+    vault_db: AsyncSession = Depends(get_vault_db),
+    admin: Admin = Depends(get_current_admin),
+):
+    from app.models.course import Course
+    from sqlalchemy import select
+
+    query = await vault_db.execute(select(Course).where(Course.id == course_id))
+    course = query.scalars().first()
+
+    if not course:
+        return {"status": "error", "message": "Course not found"}
+
+    course.title = data.title
+    course.is_active = data.is_active
+    await vault_db.commit()
+
+    return {"status": "success"}
+
+
+class NodeReorderItem(BaseModel):
+    node_id: int
+    sort_order: int
+
+
+@router.post("/admin/node/reorder")
+async def reorder_nodes(
+    items: List[NodeReorderItem],
+    vault_db: AsyncSession = Depends(get_vault_db),
+    admin: Admin = Depends(get_current_admin),
+):
+    from app.models.course import CourseNode
+
+    for item in items:
+        await vault_db.execute(
+            update(CourseNode)
+            .where(CourseNode.id == item.node_id)
+            .values(sort_order=item.sort_order)
+        )
+    await vault_db.commit()
+    return {"status": "success"}

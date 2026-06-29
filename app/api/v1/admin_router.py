@@ -198,14 +198,44 @@ async def bulk_upload_vault(
     admin: Admin = Depends(get_current_admin),
 ):
     for item in request.items:
-        new_vault = VaultItem(
-            uuid=item.uuid,
-            file_hash=item.file_hash,
-            decryption_key=f"{item.aes_key}:{item.aes_iv}",
-            download_url=f"/downloads/{item.original_filename}"
+        safe_name = (
+            item.original_filename.replace(".mp4", ".mp6")
             if item.original_filename
-            else "",
+            else f"{item.uuid}.mp6"
         )
-        vault_db.add(new_vault)
+        download_path = f"/{request.batch_name}/{safe_name}"
+        dec_key = f"{item.aes_key}:{item.aes_iv}"
+
+        stmt = select(VaultItem).where(VaultItem.uuid == item.uuid)
+        existing_query = await vault_db.execute(stmt)
+        existing_item = existing_query.scalars().first()
+
+        if existing_item:
+            existing_item.file_hash = item.file_hash
+            existing_item.decryption_key = dec_key
+            existing_item.download_url = download_path
+        else:
+            new_vault = VaultItem(
+                uuid=item.uuid,
+                file_hash=item.file_hash,
+                decryption_key=dec_key,
+                download_url=download_path,
+            )
+            vault_db.add(new_vault)
+
     await vault_db.commit()
     return {"status": "success"}
+
+
+@router.post("/vault/autobuild/{course_id}")
+async def trigger_autobuild_manual(
+    course_id: int,
+    batch_name: str,
+    vault_db: AsyncSession = Depends(get_vault_db),
+    admin: Admin = Depends(get_current_admin),
+):
+    from app.services.course_service import CourseService
+
+    return await CourseService.auto_build_course_by_vault(
+        course_id, batch_name, vault_db
+    )
