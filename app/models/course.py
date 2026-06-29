@@ -11,6 +11,7 @@ class Course(VaultBase):
     watermark_text = Column(String, nullable=True)
     watermark_color = Column(String, default="rgba(255,255,255,0.3)")
     is_active = Column(Boolean, default=True)
+    base_stream_url = Column(String(500), nullable=True)
 
     nodes = relationship(
         "CourseNode", back_populates="course", cascade="all, delete-orphan"
