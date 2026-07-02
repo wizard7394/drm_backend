@@ -35,5 +35,7 @@ class CourseNode(VaultBase):
     vault_id = Column(Integer, ForeignKey("vault_items.id"), nullable=True)
 
     course = relationship("Course", back_populates="nodes")
-    parent = relationship("CourseNode", remote_side=[id])
+
+    parent = relationship("CourseNode", remote_side=[id], cascade="all, delete")
+
     vault_item = relationship("VaultItem")

@@ -22,6 +22,7 @@ class CourseSchema(BaseModel):
     watermark_text: Optional[str] = None
     watermark_color: Optional[str] = None
     is_active: bool
+    base_stream_url: Optional[str] = None
     nodes: List[CourseNodeSchema] = []
     model_config = ConfigDict(from_attributes=True)
 
@@ -31,6 +32,7 @@ class CourseCreate(BaseModel):
     watermark_text: Optional[str] = None
     watermark_color: Optional[str] = None
     is_active: bool = True
+    base_stream_url: Optional[str] = None
 
 
 class CourseUpdate(BaseModel):
@@ -38,6 +40,7 @@ class CourseUpdate(BaseModel):
     watermark_text: Optional[str] = None
     watermark_color: Optional[str] = None
     is_active: Optional[bool] = None
+    base_stream_url: Optional[str] = None
 
 
 class NodeCreate(BaseModel):

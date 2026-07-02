@@ -7,6 +7,9 @@ class VaultItem(VaultBase):
 
     id = Column(Integer, primary_key=True, index=True)
     uuid = Column(String, unique=True, index=True)
+    batch_name = Column(String, index=True, nullable=True)
+    original_filename = Column(String, nullable=True)
     file_hash = Column(String, index=True)
     download_url = Column(String)
     decryption_key = Column(String)
+    duration = Column(Integer, nullable=True)
