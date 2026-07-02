@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict
-from typing import List, Optional
+from typing import List, Optional, Any
 
 
 class CourseNodeSchema(BaseModel):
@@ -11,7 +11,7 @@ class CourseNodeSchema(BaseModel):
     sort_order: int
     video_url: Optional[str] = None
     duration: Optional[int] = None
-    attachment_url: Optional[str] = None
+    attachments: Optional[List[Any]] = None
     children: List["CourseNodeSchema"] = []
     model_config = ConfigDict(from_attributes=True)
 
@@ -51,7 +51,7 @@ class NodeCreate(BaseModel):
     sort_order: int
     video_url: Optional[str] = None
     duration: Optional[int] = None
-    attachment_url: Optional[str] = None
+    attachments: Optional[List[Any]] = None
     vault_id: Optional[int] = None
 
 
@@ -60,7 +60,7 @@ class NodeUpdate(BaseModel):
     sort_order: Optional[int] = None
     video_url: Optional[str] = None
     duration: Optional[int] = None
-    attachment_url: Optional[str] = None
+    attachments: Optional[List[Any]] = None
     vault_id: Optional[int] = None
 
 

@@ -1,6 +1,16 @@
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, JSON, DateTime
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 from app.core.database import VaultBase
+
+
+class WatchedVideo(VaultBase):
+    __tablename__ = "watched_videos"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, index=True)
+    vault_uuid = Column(String, index=True)
+    watched_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class Course(VaultBase):
@@ -9,13 +19,11 @@ class Course(VaultBase):
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, index=True)
     watermark_text = Column(String, nullable=True)
-    watermark_color = Column(String, default="rgba(255,255,255,0.3)")
-    is_active = Column(Boolean, default=True)
+    watermark_color = Column(String, nullable=True)
+    is_active = Column(Integer, default=1)
     base_stream_url = Column(String(500), nullable=True)
 
-    nodes = relationship(
-        "CourseNode", back_populates="course", cascade="all, delete-orphan"
-    )
+    nodes = relationship("CourseNode", back_populates="course", cascade="all, delete")
 
 
 class CourseNode(VaultBase):
@@ -30,12 +38,10 @@ class CourseNode(VaultBase):
 
     video_url = Column(String, nullable=True)
     duration = Column(Integer, nullable=True)
-    attachment_url = Column(String, nullable=True)
+    attachments = Column(JSON, nullable=True)
 
     vault_id = Column(Integer, ForeignKey("vault_items.id"), nullable=True)
 
     course = relationship("Course", back_populates="nodes")
-
     parent = relationship("CourseNode", remote_side=[id], cascade="all, delete")
-
     vault_item = relationship("VaultItem")

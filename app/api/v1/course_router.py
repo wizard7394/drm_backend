@@ -127,8 +127,8 @@ async def update_course_node(
         node.video_url = data.video_url
     if data.vault_id is not None:
         node.vault_id = data.vault_id
-    if data.attachment_url is not None:
-        node.attachment_url = data.attachment_url
+    if data.attachments is not None:
+        node.attachments = data.attachments
 
     await vault_db.commit()
     return {"status": "success"}
@@ -348,3 +348,43 @@ async def trigger_autobuild(
 
     await vault_db.commit()
     return {"status": "success"}
+
+
+@router.post("/watched/{vault_uuid}")
+async def mark_video_watched(
+    vault_uuid: str,
+    vault_db: AsyncSession = Depends(get_vault_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.models.course import WatchedVideo
+    from sqlalchemy import select
+
+    stmt = select(WatchedVideo).where(
+        WatchedVideo.user_id == current_user.id, WatchedVideo.vault_uuid == vault_uuid
+    )
+    result = await vault_db.execute(stmt)
+    existing = result.scalars().first()
+
+    if not existing:
+        new_watched = WatchedVideo(user_id=current_user.id, vault_uuid=vault_uuid)
+        vault_db.add(new_watched)
+        await vault_db.commit()
+
+    return {"status": "success"}
+
+
+@router.get("/watched")
+async def get_watched_videos(
+    vault_db: AsyncSession = Depends(get_vault_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.models.course import WatchedVideo
+    from sqlalchemy import select
+
+    stmt = select(WatchedVideo.vault_uuid).where(
+        WatchedVideo.user_id == current_user.id
+    )
+    result = await vault_db.execute(stmt)
+    watched_uuids = result.scalars().all()
+
+    return {"status": "success", "watched_uuids": watched_uuids}

@@ -70,7 +70,7 @@ class CourseService:
                 "title": node.title,
                 "sort_order": node.sort_order,
                 "duration": node.duration,
-                "attachment_url": node.attachment_url,
+                "attachments": node.attachments,
                 "vault": {
                     "uuid": node.vault_item.uuid,
                     "file_hash": node.vault_item.file_hash,
@@ -159,7 +159,7 @@ class CourseService:
                 "title": node.title,
                 "sort_order": node.sort_order,
                 "duration": node.duration,
-                "attachment_url": node.attachment_url,
+                "attachments": node.attachments,
                 "vault": {
                     "uuid": node.vault_item.uuid,
                     "file_hash": node.vault_item.file_hash,
@@ -243,7 +243,7 @@ class CourseService:
             sort_order=data.sort_order,
             video_url=data.video_url,
             duration=data.duration,
-            attachment_url=data.attachment_url,
+            attachments=data.attachments,
             vault_id=data.vault_id,
         )
         vault_db.add(new_node)
@@ -371,8 +371,6 @@ class CourseService:
     async def auto_build_course_by_vault(
         course_id: int, batch_name: str, vault_db: AsyncSession
     ):
-        # این دقیقاً همون منطقی هست که برات نوشتم
-        # فقط کافیه صداش بزنی تا دیتابیس رو بخونه و درخت رو بسازه
         data = AutoBuildRequest(course_id=course_id, batch_name=batch_name)
         return await CourseService.auto_build_course(data, vault_db)
 
@@ -411,7 +409,7 @@ class CourseService:
                 "sort_order": n.sort_order,
                 "video_url": n.video_url,
                 "duration": n.duration,
-                "attachment_url": n.attachment_url,
+                "attachments": n.attachments,
                 "vault_item": None,
             }
             if n.vault_item:
@@ -464,7 +462,7 @@ class CourseService:
                 sort_order=n_data.get("sort_order", 0),
                 video_url=n_data.get("video_url"),
                 duration=n_data.get("duration"),
-                attachment_url=n_data.get("attachment_url"),
+                attachments=n_data.get("attachments"),
                 vault_id=vault_item_id,
             )
             vault_db.add(node)

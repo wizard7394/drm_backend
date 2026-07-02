@@ -8,8 +8,18 @@ async def run_patch():
     session = await anext(async_gen)
 
     queries = [
-        "ALTER TABLE course_nodes DROP CONSTRAINT IF EXISTS course_nodes_parent_id_fkey;",
-        "ALTER TABLE course_nodes ADD CONSTRAINT course_nodes_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES course_nodes(id) ON DELETE CASCADE;",
+        "ALTER TABLE course_nodes DROP COLUMN IF EXISTS attachment_url;",
+        "ALTER TABLE course_nodes ADD COLUMN attachments JSONB;",
+        """
+        CREATE TABLE IF NOT EXISTS watched_videos (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER,
+            vault_uuid VARCHAR,
+            watched_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        """,
+        "CREATE INDEX IF NOT EXISTS ix_watched_videos_user_id ON watched_videos (user_id);",
+        "CREATE INDEX IF NOT EXISTS ix_watched_videos_vault_uuid ON watched_videos (vault_uuid);",
     ]
 
     for q in queries:
