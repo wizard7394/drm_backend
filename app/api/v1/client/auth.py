@@ -1,5 +1,4 @@
 from fastapi import APIRouter, Depends, Request
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -20,10 +19,3 @@ async def request_otp(
 @router.post("/verify-otp")
 async def verify_otp(payload: VerifyRequest, db: AsyncSession = Depends(get_db)):
     return await AuthService.verify_otp(payload, db)
-
-
-@router.post("/admin/login")
-async def admin_login(
-    form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = Depends(get_db)
-):
-    return await AuthService.admin_login(form_data, db)
