@@ -8,11 +8,12 @@ from sqlalchemy import select, desc
 
 from app.api.dependencies import get_db, get_vault_db, get_current_admin
 from app.models.admin import Admin
+from app.models.license import License
 from app.models.user import User
 from app.models.device import Device
 from app.models.transaction import Transaction
 from app.models.security_log import DeviceAuditLog
-from app.models.course import WatchedVideo
+from app.models.course import Course, WatchedVideo
 
 router = APIRouter()
 
@@ -203,3 +204,26 @@ async def get_user_logs(
             {"id": log.id, "action": log.action, "reason": log.reason} for log in logs
         ]
     }
+
+
+@router.get("/{user_id}/courses")
+async def get_user_courses_admin(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    vault_db: AsyncSession = Depends(get_vault_db),
+    admin: Admin = Depends(get_current_admin),
+):
+    stmt = select(License.course_id).where(
+        License.user_id == user_id, License.is_active
+    )
+    result = await db.execute(stmt)
+    course_ids = result.scalars().all()
+
+    if not course_ids:
+        return {"courses": []}
+
+    course_stmt = select(Course).where(Course.id.in_(course_ids))
+    course_res = await vault_db.execute(course_stmt)
+    courses = course_res.scalars().all()
+
+    return {"courses": [{"id": c.id, "title": c.title} for c in courses]}
