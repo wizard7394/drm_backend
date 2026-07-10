@@ -265,7 +265,6 @@ async def trigger_autobuild(
             parts = file_path.split("/")
             folders = parts[:-1]
 
-            # حذف اتوماتیک پسوند از اسم فایل برای تمیزی پنل
             filename_with_ext = parts[-1]
             clean_title, _ = os.path.splitext(filename_with_ext)
 

@@ -14,11 +14,12 @@ from app.models.license import License  # noqa: F401
 from app.models.security_log import UnauthorizedAttempt, BlacklistedHardware  # noqa: F401
 from app.core.errors import AppErrors
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/admin/login")
+admin_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/admin/auth/login")
+client_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/client/auth/verify-otp")
 
 
 async def get_current_user(
-    token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)
+    token: str = Depends(client_oauth2_scheme), db: AsyncSession = Depends(get_db)
 ):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -56,7 +57,7 @@ async def get_current_user(
 
 
 async def get_current_admin(
-    token: str = Depends(oauth2_scheme), db: AsyncSession = Depends(get_db)
+    token: str = Depends(admin_oauth2_scheme), db: AsyncSession = Depends(get_db)
 ):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])

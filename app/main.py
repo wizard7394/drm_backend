@@ -57,26 +57,28 @@ app.include_router(webhook_api_router, prefix="/api/v1/webhook", tags=["Webhooks
 
 # --- Client routes (end-user secure player) ---
 app.include_router(
-    client_auth_router, prefix="/api/v1/auth", tags=["Client - Authentication"]
+    client_auth_router, prefix="/api/v1/client/auth", tags=["Client - Authentication"]
 )
 app.include_router(
-    client_course_router, prefix="/api/v1/course", tags=["Client - Courses"]
+    client_course_router, prefix="/api/v1/client/course", tags=["Client - Courses"]
 )
 app.include_router(
     client_stream_router, prefix="/drm", tags=["Client - Secure Streaming"]
 )
 app.include_router(
-    client_telemetry_router, prefix="/api/v1/telemetry", tags=["Client - Telemetry"]
+    client_telemetry_router,
+    prefix="/api/v1/client/telemetry",
+    tags=["Client - Telemetry"],
 )
 
 # --- Admin routes (secure_admin panel) ---
 app.include_router(
-    admin_auth_router, prefix="/api/v1/auth/admin", tags=["Admin - Authentication"]
+    admin_auth_router, prefix="/api/v1/admin/auth", tags=["Admin - Authentication"]
 )
 app.include_router(
-    admin_course_router, prefix="/api/v1/course/admin", tags=["Admin - Courses"]
+    admin_course_router, prefix="/api/v1/admin/course", tags=["Admin - Courses"]
 )
 app.include_router(admin_panel_router, prefix="/api/v1/admin", tags=["Admin - Panel"])
 app.include_router(
-    admin_dashboard_router, prefix="/api/v1/dashboard", tags=["Admin - Dashboard"]
+    admin_dashboard_router, prefix="/api/v1/admin/dashboard", tags=["Admin - Dashboard"]
 )

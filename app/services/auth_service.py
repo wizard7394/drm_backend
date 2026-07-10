@@ -10,8 +10,11 @@ from app.models.admin import Admin
 from app.models.device import Device
 from app.models.hardware_reset import HardwareReset  # noqa: F401
 from app.models.license import License  # noqa: F401
-# جدول DeviceAuditLog برای ثبت لاگ‌های بلاک خودکار اضافه شد
-from app.models.security_log import UnauthorizedAttempt, BlacklistedHardware, DeviceAuditLog
+from app.models.security_log import (
+    UnauthorizedAttempt,
+    BlacklistedHardware,
+    DeviceAuditLog,
+)
 
 from app.schemas.auth import RequestOtpSchema, VerifyRequest
 from app.core.security import create_access_token
@@ -141,19 +144,18 @@ class AuthService:
                     current_device.system_specs = payload.system_specs
                     break
 
-            # سوییچ مرگ خودکار: سیستم جدید پیدا شد، اکانت قبلی مسدود می‌شود
             if not current_device:
                 for existing_d in user_devices:
                     existing_d.is_blocked = True
-                    
+
                     audit_log = DeviceAuditLog(
                         mobile=user.mobile,
                         hardware_id=existing_d.hardware_id,
                         action="AUTO_BLOCK_MISMATCH",
-                        reason=f"System auto-blocked due to unauthorized login attempt from new hardware ID: {payload.hardware_id}"
+                        reason=f"System auto-blocked due to unauthorized login attempt from new hardware ID: {payload.hardware_id}",
                     )
                     db.add(audit_log)
-                    
+
                 await db.commit()
                 raise AppErrors.HARDWARE_MISMATCH
 
