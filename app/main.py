@@ -17,6 +17,7 @@ from app.api.v1.admin.auth import router as admin_auth_router
 from app.api.v1.admin.course import router as admin_course_router
 from app.api.v1.admin.panel import router as admin_panel_router
 from app.api.v1.admin.dashboard import router as admin_dashboard_router
+from app.api.v1.admin.user import router as admin_user_router
 
 
 @asynccontextmanager
@@ -81,4 +82,7 @@ app.include_router(
 app.include_router(admin_panel_router, prefix="/api/v1/admin", tags=["Admin - Panel"])
 app.include_router(
     admin_dashboard_router, prefix="/api/v1/admin/dashboard", tags=["Admin - Dashboard"]
+)
+app.include_router(
+    admin_user_router, prefix="/api/v1/admin/user", tags=["Admin - Users"]
 )
