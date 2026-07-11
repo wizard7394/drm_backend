@@ -30,7 +30,7 @@ class CourseService:
             select(License).where(
                 License.user_id == current_user.id,
                 License.course_id == course_id,
-                License.is_active,
+                License.is_active.is_(True),
             )
         )
         db_license = license_query.scalars().first()
@@ -46,7 +46,10 @@ class CourseService:
                 raise AppErrors.LICENSE_EXPIRED
 
         course_query = await vault_db.execute(
-            select(Course).where(Course.id == course_id, Course.is_active)
+            select(Course).where(
+                Course.id == course_id,
+                Course.is_active == 1,
+            )
         )
         course_obj = course_query.scalars().first()
 
