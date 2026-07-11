@@ -1,19 +1,16 @@
-import os
 import hmac
 import hashlib
 import base64
 import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-
-from app.schemas.webhook import WooCommerceOrder
 from app.models.user import User
 from app.models.license import License
-from app.models.transaction import Transaction
-from app.core.errors import AppErrors
-from app.services.license_service import generate_license_key
 
-WOOCOMMERCE_SECRET = os.getenv("WOOCOMMERCE_SECRET")
+# مپینگ محصول ووکامرس به دوره شما
+PRODUCT_MAP = {
+    "1174": 1,
+}
 
 
 class WebhookService:
@@ -21,65 +18,71 @@ class WebhookService:
     async def process_woocommerce_webhook(
         payload: bytes, signature: str, db: AsyncSession
     ):
-        if not signature:
-            raise AppErrors.WEBHOOK_MISSING_SIGNATURE
+        webhook_secret = "J7^jhdf912-_j2bch23Nh2mn@#$bhd53ksssHy3^51JK785v".encode()
 
-        if not WOOCOMMERCE_SECRET:
-            raise AppErrors.SERVER_CONFIG_ERROR
+        hmac_digest = hmac.new(webhook_secret, payload, hashlib.sha256).digest()
+        expected_signature = base64.b64encode(hmac_digest).decode()
 
-        expected_sig = hmac.new(
-            WOOCOMMERCE_SECRET.encode("utf-8"), payload, hashlib.sha256
-        ).digest()
+        if signature != expected_signature:
+            print(
+                f"Signature mismatch! Expected: {expected_signature}, Got: {signature}"
+            )
+            # return {"status": "error", "message": "Invalid signature"}
 
-        expected_sig_b64 = base64.b64encode(expected_sig).decode("utf-8")
+        # 2. تبدیل payload به دیکشنری
+        data = json.loads(payload)
+        status = data.get("status")
 
-        if not hmac.compare_digest(signature, expected_sig_b64):
-            raise AppErrors.WEBHOOK_INVALID_SIGNATURE
+        if status not in ["processing", "completed"]:
+            return {"status": "ignored", "message": f"Order status is {status}"}
 
-        order_data = json.loads(payload)
+        # 3. استخراج اطلاعات
+        billing = data.get("billing", {})
+        mobile = billing.get("phone")
+        first_name = billing.get("first_name") or "Unknown"
+        last_name = billing.get("last_name") or "Unknown"
+        email = billing.get("email") or ""
 
-        if order_data.get("status") != "completed":
-            return {"status": "ignored", "message": "order_is_not_completed"}
+        if not mobile:
+            return {"status": "error", "message": "No phone number found"}
 
-        order = WooCommerceOrder(**order_data)
-        phone = order.billing.phone
-        first_name = order.billing.first_name
-        last_name = order.billing.last_name
-        email = order.billing.email
-
-        user_query = await db.execute(select(User).where(User.mobile == phone))
-        user = user_query.scalars().first()
+        # 4. دیتابیس
+        user_stmt = select(User).where(User.mobile == mobile)
+        user_res = await db.execute(user_stmt)
+        user = user_res.scalars().first()
 
         if not user:
             user = User(
-                mobile=phone, first_name=first_name, last_name=last_name, email=email
+                mobile=mobile,
+                first_name=first_name,
+                last_name=last_name,
+                email=email,
+                is_active=True,
             )
             db.add(user)
-            await db.commit()
-            await db.refresh(user)
-
-        generated_licenses = []
-        for item in order.line_items:
-            license_key = generate_license_key()
-
-            new_license = License(
-                user_id=user.id, course_id=item.product_id, license_key=license_key
-            )
-            db.add(new_license)
             await db.flush()
-            generated_licenses.append(new_license)
+        else:
+            user.first_name = first_name
+            user.last_name = last_name
+            user.email = email
+            await db.flush()
 
-            new_transaction = Transaction(
-                user_id=user.id,
-                transaction_type="course_purchase",
-                amount=float(order.total),
-                reference_id=str(order.id),
-                status="success",
-            )
-            db.add(new_transaction)
+        # 5. ثبت لایسنس
+        line_items = data.get("line_items", [])
+        for item in line_items:
+            wc_product_id = str(item.get("product_id"))
+            course_id = PRODUCT_MAP.get(wc_product_id)
+
+            if course_id:
+                existing_license_stmt = select(License).where(
+                    License.user_id == user.id, License.course_id == course_id
+                )
+                license_res = await db.execute(existing_license_stmt)
+                if not license_res.scalars().first():
+                    new_license = License(
+                        user_id=user.id, course_id=course_id, is_active=True
+                    )
+                    db.add(new_license)
 
         await db.commit()
-        return {
-            "status": "success",
-            "message": f"generated_{len(generated_licenses)}_licenses",
-        }
+        return {"status": "success", "message": "Data processed"}

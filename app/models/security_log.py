@@ -3,8 +3,6 @@ from datetime import datetime, timezone
 from app.core.database import Base
 
 
-# این تابع زمان فعلی را می‌گیرد و برچسب منطقه زمانی آن را حذف می‌کند
-# تا درایور asyncpg به دیتابیس بدون مشکل آن را تزریق کند.
 def get_naive_utc_now():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
