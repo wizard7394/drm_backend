@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
 
@@ -12,13 +12,17 @@ from app.core.errors import AppErrors
 class StreamService:
     @staticmethod
     async def get_video_keys(
-        course_id: int, video_id: int, current_user: User, db: AsyncSession
+        course_id: int,
+        video_id: int,
+        current_user: User,
+        main_db: AsyncSession,
+        vault_db: AsyncSession,
     ):
-        license_query = await db.execute(
+        license_query = await main_db.execute(
             select(License).where(
                 License.user_id == current_user.id,
                 License.course_id == course_id,
-                License.is_active,
+                text("licenses.is_active = true"),
             )
         )
         db_license = license_query.scalars().first()
@@ -33,7 +37,7 @@ class StreamService:
             if expire_time < datetime.now(timezone.utc):
                 raise AppErrors.LICENSE_EXPIRED
 
-        video_query = await db.execute(
+        video_query = await vault_db.execute(
             select(CourseNode)
             .options(selectinload(CourseNode.vault_item))
             .where(
@@ -47,11 +51,15 @@ class StreamService:
         if not db_video or not db_video.vault_item:
             raise AppErrors.VIDEO_KEYS_NOT_FOUND
 
+        v_item = db_video.vault_item
+        aes_key = getattr(v_item, "aes_key", getattr(v_item, "decryption_key", None))
+        aes_iv = getattr(v_item, "aes_iv", None)
+        print(aes_key)
         return {
             "status": "success",
             "video_id": video_id,
-            "uuid": db_video.vault_item.uuid,
-            "file_hash": db_video.vault_item.file_hash,
-            "aes_key": db_video.vault_item.aes_key,
-            "aes_iv": db_video.vault_item.aes_iv,
+            "uuid": v_item.uuid,
+            "file_hash": v_item.file_hash,
+            "aes_key": aes_key,
+            "aes_iv": aes_iv,
         }

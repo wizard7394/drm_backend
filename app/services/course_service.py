@@ -26,11 +26,13 @@ class CourseService:
         main_db: AsyncSession,
         vault_db: AsyncSession,
     ):
+        # استفاده از text برای دور زدن باگِ تایپ دیتابیس
+        # چون لایسنس Boolean شده، مستقیم می‌گیم true
         license_query = await main_db.execute(
             select(License).where(
                 License.user_id == current_user.id,
                 License.course_id == course_id,
-                License.is_active.is_(True),
+                text("licenses.is_active = true"),
             )
         )
         db_license = license_query.scalars().first()
@@ -41,15 +43,17 @@ class CourseService:
         if db_license.expires_at:
             expire_time = db_license.expires_at
             if expire_time.tzinfo is None:
+                from datetime import timezone
+
                 expire_time = expire_time.replace(tzinfo=timezone.utc)
+            from datetime import datetime, timezone
+
             if expire_time < datetime.now(timezone.utc):
                 raise AppErrors.LICENSE_EXPIRED
 
+        # چون دوره Integer مونده، مستقیم می‌گیم 1
         course_query = await vault_db.execute(
-            select(Course).where(
-                Course.id == course_id,
-                Course.is_active == 1,
-            )
+            select(Course).where(Course.id == course_id, text("courses.is_active = 1"))
         )
         course_obj = course_query.scalars().first()
 
@@ -100,7 +104,7 @@ class CourseService:
             "title": course_obj.title,
             "watermark_text": course_obj.watermark_text,
             "watermark_color": course_obj.watermark_color,
-            "tree": tree,
+            "sections": tree,
         }
 
     @staticmethod
