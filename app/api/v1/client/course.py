@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.api.dependencies import get_db, get_vault_db, get_current_user
 from app.models.user import User
 from app.services.course_service import CourseService
-
 from sqlalchemy import select
 from app.models.license import License
 from app.models.course import Course
+from app.core.database import get_db, get_vault_db
+from app.api.v1.client.dependencies import get_current_user
 
 router = APIRouter()
 

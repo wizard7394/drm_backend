@@ -3,12 +3,15 @@ from typing import List
 from sqlalchemy import update, select, func
 import os
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.api.dependencies import get_db, get_vault_db, get_current_admin
+from app.core.database import get_db, get_vault_db
+from app.api.v1.admin.dependencies import get_current_admin
 from app.models.admin import Admin
 from app.models.course import Course, CourseNode
 from app.models.vault import VaultItem
 from pydantic import BaseModel
 from app.services.course_service import CourseService
+
+
 from app.schemas.course import (
     CourseCreate,
     CourseUpdate,

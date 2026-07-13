@@ -4,9 +4,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
-
-
-from app.api.dependencies import get_db, get_vault_db, get_current_admin
 from app.models.admin import Admin
 from app.models.license import License
 from app.models.user import User
@@ -14,6 +11,9 @@ from app.models.device import Device
 from app.models.transaction import Transaction
 from app.models.security_log import DeviceAuditLog
 from app.models.course import Course, WatchedVideo
+
+from app.core.database import get_db, get_vault_db
+from app.api.v1.admin.dependencies import get_current_admin
 
 router = APIRouter()
 

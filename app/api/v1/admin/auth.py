@@ -2,8 +2,10 @@ from fastapi import APIRouter, Depends
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import get_db
 from app.services.auth_service import AuthService
+
+from app.core.database import get_db, get_vault_db
+from app.api.v1.admin.dependencies import get_current_admin
 
 router = APIRouter()
 

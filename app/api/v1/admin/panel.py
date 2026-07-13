@@ -4,7 +4,6 @@ from sqlalchemy import select, func
 from pydantic import BaseModel
 from typing import Optional, List
 from sqlalchemy.orm import selectinload
-from app.api.dependencies import get_db, get_vault_db, get_current_admin
 from app.core.errors import AppErrors
 from app.models.admin import Admin
 from app.models.course import Course
@@ -15,6 +14,9 @@ from app.models.hardware_reset import HardwareReset  # noqa: F401
 from app.models.license import License  # noqa: F401
 from app.models.transaction import Transaction  # noqa: F401
 from app.models.user import User
+
+from app.core.database import get_db, get_vault_db
+from app.api.v1.admin.dependencies import get_current_admin
 
 router = APIRouter()
 
