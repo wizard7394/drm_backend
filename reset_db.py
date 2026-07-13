@@ -1,15 +1,23 @@
 import asyncio
-from app.core.database import engine, Base
+from app.core.database import engine, Base, vault_engine, VaultBase
 
 
 async def reset_database():
-    print("Dropping all tables...")
+    print("Dropping main tables...")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
 
-    print("Creating all tables from current models...")
+    print("Dropping vault tables...")
+    async with vault_engine.begin() as conn:
+        await conn.run_sync(VaultBase.metadata.drop_all)
+
+    print("Creating main tables...")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    print("Creating vault tables...")
+    async with vault_engine.begin() as conn:
+        await conn.run_sync(VaultBase.metadata.create_all)
 
     print("Database reset completed successfully.")
 

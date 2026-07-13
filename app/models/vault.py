@@ -12,4 +12,5 @@ class VaultItem(VaultBase):
     file_hash = Column(String, index=True)
     download_url = Column(String)
     decryption_key = Column(String)
+    aes_iv = Column(String, nullable=True)
     duration = Column(Integer, nullable=True)

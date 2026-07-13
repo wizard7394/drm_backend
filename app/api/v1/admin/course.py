@@ -192,12 +192,14 @@ async def inject_keys(
         decryption_key = item.get(
             "encryption_key", item.get("decryption_key", item.get("aes_key"))
         )
+        aes_iv = item.get("aes_iv", item.get("iv"))
 
         if vault_record:
             vault_record.batch_name = batch_name
             vault_record.original_filename = orig_name
             vault_record.file_hash = item.get("file_hash")
             vault_record.decryption_key = decryption_key
+            vault_record.aes_iv = aes_iv
             vault_record.uuid = uuid_val
             vault_record.duration = item.get("duration")
         else:
@@ -207,6 +209,7 @@ async def inject_keys(
                 original_filename=orig_name,
                 file_hash=item.get("file_hash"),
                 decryption_key=decryption_key,
+                aes_iv=aes_iv,
                 duration=item.get("duration"),
                 download_url=item.get("download_url", ""),
             )

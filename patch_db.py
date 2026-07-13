@@ -1,28 +1,20 @@
 import asyncio
 from sqlalchemy import text
-from app.api.dependencies import get_vault_db
+from app.core.database import vault_engine
 
-async def run_patch():
-    async_gen = get_vault_db()
-    session = await anext(async_gen)
-    
-    queries = [
-        "ALTER TABLE courses ADD COLUMN base_stream_url VARCHAR(500);",
-        "ALTER TABLE vault_items ADD COLUMN batch_name VARCHAR;",
-        "ALTER TABLE vault_items ADD COLUMN original_filename VARCHAR;",
-        "ALTER TABLE vault_items ADD COLUMN duration INTEGER;"
-    ]
-    
-    for q in queries:
+
+async def add_missing_column():
+    print("Injecting aes_iv column to PostgreSQL...")
+    async with vault_engine.begin() as conn:
         try:
-            await session.execute(text(q))
-            await session.commit()
-            print(f"Executed: {q}")
+            # دستور مستقیم برای اضافه کردن ستون به دیتابیس
+            await conn.execute(
+                text("ALTER TABLE vault_items ADD COLUMN aes_iv VARCHAR;")
+            )
+            print("✅ Column 'aes_iv' successfully added!")
         except Exception as e:
-            await session.rollback()
-            print(f"Skipped: {q}")
-            
-    await session.close()
+            print(f"❌ Error: {e}")
+
 
 if __name__ == "__main__":
-    asyncio.run(run_patch())
+    asyncio.run(add_missing_column())
