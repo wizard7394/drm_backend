@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.database import engine, Base, vault_engine, VaultBase
 
-from app.api.v1.webhook_router import router as webhook_api_router
+from app.api.v1.webhooks.woocommerce_webhook import router as woocommerce_router
 
 # Client-facing routers (end users of the secure player)
 from app.api.v1.client.auth import router as client_auth_router
@@ -54,7 +54,7 @@ def home():
     return {"status": "ok", "service": "Nabegheha Secure Core is running"}
 
 
-app.include_router(webhook_api_router, prefix="/api/v1/webhook", tags=["Webhooks"])
+app.include_router(woocommerce_router, prefix="/api/v1")
 
 # --- Client routes (end-user secure player) ---
 app.include_router(
