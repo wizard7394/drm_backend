@@ -1,8 +1,8 @@
+import os
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, text
+from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
-import re
 
 from app.models.course import Course, CourseNode
 from app.models.license import License
@@ -14,7 +14,8 @@ from app.schemas.course import (
     CourseUpdate,
     NodeCreate,
     NodeUpdate,
-    AutoBuildRequest,
+    VaultBulkInjectRequest,
+    TriggerAutobuildRequest,
 )
 
 
@@ -26,13 +27,11 @@ class CourseService:
         main_db: AsyncSession,
         vault_db: AsyncSession,
     ):
-        # استفاده از text برای دور زدن باگِ تایپ دیتابیس
-        # چون لایسنس Boolean شده، مستقیم می‌گیم true
         license_query = await main_db.execute(
             select(License).where(
                 License.user_id == current_user.id,
                 License.course_id == course_id,
-                text("licenses.is_active = true"),
+                License.is_active,
             )
         )
         db_license = license_query.scalars().first()
@@ -43,17 +42,12 @@ class CourseService:
         if db_license.expires_at:
             expire_time = db_license.expires_at
             if expire_time.tzinfo is None:
-                from datetime import timezone
-
                 expire_time = expire_time.replace(tzinfo=timezone.utc)
-            from datetime import datetime, timezone
-
             if expire_time < datetime.now(timezone.utc):
                 raise AppErrors.LICENSE_EXPIRED
 
-        # چون دوره Integer مونده، مستقیم می‌گیم 1
         course_query = await vault_db.execute(
-            select(Course).where(Course.id == course_id, text("courses.is_active = 1"))
+            select(Course).where(Course.id == course_id, Course.is_active)
         )
         course_obj = course_query.scalars().first()
 
@@ -83,7 +77,7 @@ class CourseService:
                     "file_hash": node.vault_item.file_hash,
                     "download_url": node.vault_item.download_url,
                 }
-                if node.vault_item
+                if getattr(node, "vault_item", None)
                 else None,
                 "children": [],
             }
@@ -172,7 +166,7 @@ class CourseService:
                     "file_hash": node.vault_item.file_hash,
                     "download_url": node.vault_item.download_url,
                 }
-                if node.vault_item
+                if getattr(node, "vault_item", None)
                 else None,
                 "children": [],
             }
@@ -288,194 +282,167 @@ class CourseService:
         return {"status": "success"}
 
     @staticmethod
-    async def auto_build_course(data: AutoBuildRequest, vault_db: AsyncSession):
-        DOWNLOAD_HOST_BASE = "https://cdn.nabegheha.com"
+    async def inject_vault_keys_bulk(
+        data: VaultBulkInjectRequest, vault_db: AsyncSession
+    ):
+        batch_name = data.batch_name
 
-        course_check = await vault_db.execute(
-            select(Course).where(Course.id == data.course_id)
+        for item in data.items:
+            stmt = select(VaultItem).where(
+                or_(
+                    VaultItem.uuid == item.uuid,
+                    (VaultItem.batch_name == batch_name)
+                    & (VaultItem.original_filename == item.original_filename),
+                )
+            )
+            existing = await vault_db.execute(stmt)
+            vault_record = existing.scalars().first()
+
+            dec_key = (
+                getattr(item, "encryption_key", None)
+                or getattr(item, "decryption_key", None)
+                or getattr(item, "aes_key", None)
+            )
+            aes_iv_val = getattr(item, "aes_iv", None) or getattr(item, "iv", None)
+
+            if vault_record:
+                vault_record.batch_name = batch_name
+                vault_record.original_filename = item.original_filename
+                vault_record.file_hash = item.file_hash
+                vault_record.decryption_key = dec_key
+                vault_record.aes_iv = aes_iv_val
+                vault_record.uuid = item.uuid
+                vault_record.duration = item.duration
+            else:
+                new_vault = VaultItem(
+                    uuid=item.uuid,
+                    batch_name=batch_name,
+                    original_filename=item.original_filename,
+                    file_hash=item.file_hash,
+                    decryption_key=dec_key,
+                    aes_iv=aes_iv_val,
+                    duration=item.duration,
+                    download_url=getattr(item, "download_url", ""),
+                )
+                vault_db.add(new_vault)
+
+        await vault_db.commit()
+        return {"status": "success"}
+
+    @staticmethod
+    async def auto_build_course_tree(
+        course_id: int, payload: TriggerAutobuildRequest, vault_db: AsyncSession
+    ):
+        batch_name = payload.batch_name
+        cdn_base_url = os.getenv("CDN_BASE_URL", "https://cdn.nabegheha.com/download")
+
+        course_query = await vault_db.execute(
+            select(Course).where(Course.id == course_id)
         )
-        if not course_check.scalars().first():
-            new_c = Course(
-                id=data.course_id,
-                title=f"Auto Generated Course {data.course_id}",
+        course = course_query.scalars().first()
+
+        if not course:
+            course = Course(
+                id=course_id,
+                title=f"Auto Generated Course {course_id}",
                 is_active=True,
             )
-            vault_db.add(new_c)
+            vault_db.add(course)
             await vault_db.flush()
 
-        await vault_db.execute(
-            text(f"DELETE FROM course_nodes WHERE course_id = {data.course_id}")
-        )
-        await vault_db.commit()
+        base_url = getattr(course, "base_stream_url", None) or cdn_base_url
 
-        search_term = f"/{data.batch_name}/%"
         vault_query = await vault_db.execute(
-            select(VaultItem).where(VaultItem.download_url.like(search_term))
+            select(VaultItem).where(VaultItem.batch_name == batch_name)
         )
         vault_items = vault_query.scalars().all()
 
-        if not vault_items:
-            return {
-                "status": "error",
-                "message": f"No records found in database for batch: {data.batch_name}",
-            }
-
-        folders_map = {}
-        vault_items_sorted = sorted(vault_items, key=lambda x: x.download_url)
-        sort_idx = 1
-
-        for item in vault_items_sorted:
-            rel_path = item.download_url.replace(f"/{data.batch_name}/", "")
-            parts = rel_path.split("/")
-
-            file_name = parts[-1]
-            folder_parts = parts[:-1]
-
-            parent_id = None
-            current_folder_path = ""
-
-            for folder in folder_parts:
-                current_folder_path = (
-                    f"{current_folder_path}/{folder}" if current_folder_path else folder
-                )
-                if current_folder_path not in folders_map:
-                    clean_folder = re.sub(r"^[\d\.\-_]+", "", folder).strip() or folder
-                    folder_node = CourseNode(
-                        course_id=data.course_id,
-                        parent_id=parent_id,
-                        item_type="folder",
-                        title=clean_folder,
-                        sort_order=len(folders_map) + 1,
-                    )
-                    vault_db.add(folder_node)
-                    await vault_db.flush()
-                    folders_map[current_folder_path] = folder_node.id
-
-                parent_id = folders_map[current_folder_path]
-
-            clean_file = re.sub(r"^[\d\.\-_]+", "", file_name)
-            title = clean_file.rsplit(".", 1)[0].strip() or file_name
-
-            video_node = CourseNode(
-                course_id=data.course_id,
-                parent_id=parent_id,
-                item_type="video",
-                title=title,
-                sort_order=sort_idx,
-                video_url=f"{DOWNLOAD_HOST_BASE}{item.download_url}",
-                vault_id=item.id,
-            )
-            vault_db.add(video_node)
-            sort_idx += 1
-
-        await vault_db.commit()
-        return {
-            "status": "success",
-            "message": f"Course tree generated successfully with {len(vault_items_sorted)} nodes.",
-        }
-
-    @staticmethod
-    async def auto_build_course_by_vault(
-        course_id: int, batch_name: str, vault_db: AsyncSession
-    ):
-        data = AutoBuildRequest(course_id=course_id, batch_name=batch_name)
-        return await CourseService.auto_build_course(data, vault_db)
-
-    @staticmethod
-    async def export_vault_data(vault_db: AsyncSession):
-        courses = (await vault_db.execute(select(Course))).scalars().all()
-        nodes = (
-            (
-                await vault_db.execute(
-                    select(CourseNode).options(selectinload(CourseNode.vault_item))
-                )
-            )
-            .scalars()
-            .all()
+        nodes_query = await vault_db.execute(
+            select(CourseNode).where(CourseNode.course_id == course_id)
         )
+        existing_nodes = nodes_query.scalars().all()
+        existing_vault_ids = [
+            n.vault_id for n in existing_nodes if n.vault_id is not None
+        ]
 
-        export_data = {"courses": [], "nodes": []}
-        for c in courses:
-            export_data["courses"].append(
-                {
-                    "id": c.id,
-                    "title": c.title,
-                    "watermark_text": c.watermark_text,
-                    "watermark_color": c.watermark_color,
-                    "is_active": c.is_active,
-                }
-            )
+        for item in vault_items:
+            if item.id not in existing_vault_ids:
+                current_parent_id = None
+                file_path = item.original_filename or item.uuid
+                parts = file_path.split("/")
+                folders = parts[:-1]
+                filename_with_ext = parts[-1]
+                clean_title, _ = os.path.splitext(filename_with_ext)
 
-        for n in nodes:
-            nd = {
-                "id": n.id,
-                "course_id": n.course_id,
-                "parent_id": n.parent_id,
-                "item_type": n.item_type,
-                "title": n.title,
-                "sort_order": n.sort_order,
-                "video_url": n.video_url,
-                "duration": n.duration,
-                "attachments": n.attachments,
-                "vault_item": None,
-            }
-            if n.vault_item:
-                nd["vault_item"] = {
-                    "uuid": n.vault_item.uuid,
-                    "file_hash": n.vault_item.file_hash,
-                    "download_url": n.vault_item.download_url,
-                    "decryption_key": n.vault_item.decryption_key,
-                }
-            export_data["nodes"].append(nd)
+                for folder_name in folders:
+                    stmt = select(CourseNode).where(
+                        CourseNode.course_id == course_id,
+                        CourseNode.item_type == "folder",
+                        CourseNode.title == folder_name,
+                    )
 
-        return export_data
+                    if current_parent_id is None:
+                        stmt = stmt.where(CourseNode.parent_id.is_(None))
+                    else:
+                        stmt = stmt.where(CourseNode.parent_id == current_parent_id)
 
-    @staticmethod
-    async def import_vault_data(data: dict, vault_db: AsyncSession):
-        await vault_db.execute(text("DELETE FROM course_nodes"))
-        await vault_db.execute(text("DELETE FROM courses"))
-        await vault_db.execute(text("DELETE FROM vault_items"))
+                    folder_query = await vault_db.execute(stmt)
+                    folder = folder_query.scalars().first()
 
-        for c_data in data.get("courses", []):
-            course = Course(
-                id=c_data["id"],
-                title=c_data["title"],
-                watermark_text=c_data.get("watermark_text"),
-                watermark_color=c_data.get("watermark_color", "rgba(255,255,255,0.3)"),
-                is_active=c_data.get("is_active", True),
-            )
-            vault_db.add(course)
+                    if folder:
+                        current_parent_id = folder.id
+                    else:
+                        sort_stmt = select(func.max(CourseNode.sort_order)).where(
+                            CourseNode.course_id == course_id
+                        )
+                        if current_parent_id is None:
+                            sort_stmt = sort_stmt.where(CourseNode.parent_id.is_(None))
+                        else:
+                            sort_stmt = sort_stmt.where(
+                                CourseNode.parent_id == current_parent_id
+                            )
 
-        for n_data in data.get("nodes", []):
-            vault_item_id = None
-            v_data = n_data.get("vault_item")
-            if v_data:
-                vault_item = VaultItem(
-                    uuid=v_data["uuid"],
-                    file_hash=v_data["file_hash"],
-                    download_url=v_data["download_url"],
-                    decryption_key=v_data["decryption_key"],
+                        max_sort_query = await vault_db.execute(sort_stmt)
+                        max_sort = max_sort_query.scalar() or 0
+
+                        new_folder = CourseNode(
+                            course_id=course_id,
+                            parent_id=current_parent_id,
+                            item_type="folder",
+                            title=folder_name,
+                            sort_order=max_sort + 1,
+                        )
+                        vault_db.add(new_folder)
+                        await vault_db.flush()
+                        current_parent_id = new_folder.id
+
+                sort_stmt = select(func.max(CourseNode.sort_order)).where(
+                    CourseNode.course_id == course_id
                 )
-                vault_db.add(vault_item)
-                await vault_db.flush()
-                vault_item_id = vault_item.id
+                if current_parent_id is None:
+                    sort_stmt = sort_stmt.where(CourseNode.parent_id.is_(None))
+                else:
+                    sort_stmt = sort_stmt.where(
+                        CourseNode.parent_id == current_parent_id
+                    )
 
-            node = CourseNode(
-                id=n_data["id"],
-                course_id=n_data["course_id"],
-                parent_id=n_data["parent_id"],
-                item_type=n_data["item_type"],
-                title=n_data["title"],
-                sort_order=n_data.get("sort_order", 0),
-                video_url=n_data.get("video_url"),
-                duration=n_data.get("duration"),
-                attachments=n_data.get("attachments"),
-                vault_id=vault_item_id,
-            )
-            vault_db.add(node)
+                max_sort_query = await vault_db.execute(sort_stmt)
+                max_sort = max_sort_query.scalar() or 0
+
+                video_url = f"{base_url.rstrip('/')}/{item.uuid}.enc"
+
+                new_video = CourseNode(
+                    course_id=course_id,
+                    parent_id=current_parent_id,
+                    item_type="video",
+                    title=clean_title,
+                    sort_order=max_sort + 1,
+                    video_url=video_url,
+                    duration=item.duration,
+                    vault_id=item.id,
+                )
+                vault_db.add(new_video)
+                await vault_db.flush()
 
         await vault_db.commit()
-        return {
-            "status": "success",
-            "message": "Vault successfully imported and restored.",
-        }
+        return {"status": "success"}
