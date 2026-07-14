@@ -31,7 +31,10 @@ if not PRIVATE_KEY_PEM:
     )
 
 try:
-    private_key_formatted = PRIVATE_KEY_PEM.replace("\\n", "\n").encode("utf-8")
+    clean_pem = PRIVATE_KEY_PEM.strip(" \"'")
+    clean_pem = clean_pem.replace("\\n", "\n")
+    private_key_formatted = clean_pem.encode("utf-8")
+
     private_key = serialization.load_pem_private_key(
         private_key_formatted,
         password=None,
