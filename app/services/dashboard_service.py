@@ -5,7 +5,7 @@ from app.models.user import User
 from app.models.course import Course
 from app.models.license import License
 from app.models.transaction import Transaction
-from app.models.security_log import SecurityLog
+from app.models.security_log import UnauthorizedAttempt
 
 
 class DashboardService:
@@ -32,7 +32,9 @@ class DashboardService:
         total_revenue = revenue_query.scalar() or 0.0
 
         logs_query = await main_db.execute(
-            select(SecurityLog).order_by(SecurityLog.id.desc()).limit(10)
+            select(UnauthorizedAttempt)
+            .order_by(UnauthorizedAttempt.id.desc())
+            .limit(10)
         )
         recent_logs = logs_query.scalars().all()
 

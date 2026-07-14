@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import os
 from app.core.database import get_db
-from app.services.webhook_service import process_order
+from app.services.webhook_service import WebhookService
 
 router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
 
@@ -61,6 +61,6 @@ async def woocommerce_handler(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Payload missing order ID"
         )
 
-    await process_order(db, payload, order_id)
+    await WebhookService.process_order(db, payload, order_id)
 
     return {"status": "success"}
