@@ -4,7 +4,7 @@ from sqlalchemy import select, func, or_
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
 
-from app.models.course import Course, CourseNode
+from app.models.course import Course, CourseNode, WatchedVideo
 from app.models.license import License
 from app.models.user import User
 from app.models.vault import VaultItem
@@ -20,6 +20,29 @@ from app.schemas.course import (
 
 
 class CourseService:
+    @staticmethod
+    async def get_user_courses(
+        current_user: User, db: AsyncSession, vault_db: AsyncSession
+    ):
+        stmt = select(License.course_id).where(
+            License.user_id == current_user.id, License.is_active
+        )
+        license_result = await db.execute(stmt)
+        course_ids = license_result.scalars().all()
+
+        if not course_ids:
+            return {"status": "success", "courses": []}
+
+        course_stmt = select(Course).where(Course.id.in_(course_ids), Course.is_active)
+        course_result = await vault_db.execute(course_stmt)
+        courses = course_result.scalars().all()
+
+        course_list = [
+            {"id": c.id, "title": c.title, "is_active": bool(c.is_active)}
+            for c in courses
+        ]
+        return {"status": "success", "courses": course_list}
+
     @staticmethod
     async def get_course_details(
         course_id: int,
@@ -100,6 +123,34 @@ class CourseService:
             "watermark_color": course_obj.watermark_color,
             "sections": tree,
         }
+
+    @staticmethod
+    async def mark_video_watched(
+        vault_uuid: str, current_user: User, vault_db: AsyncSession
+    ):
+        stmt = select(WatchedVideo).where(
+            WatchedVideo.user_id == current_user.id,
+            WatchedVideo.vault_uuid == vault_uuid,
+        )
+        result = await vault_db.execute(stmt)
+        existing = result.scalars().first()
+
+        if not existing:
+            new_watched = WatchedVideo(user_id=current_user.id, vault_uuid=vault_uuid)
+            vault_db.add(new_watched)
+            await vault_db.commit()
+
+        return {"status": "success"}
+
+    @staticmethod
+    async def get_watched_videos(current_user: User, vault_db: AsyncSession):
+        stmt = select(WatchedVideo.vault_uuid).where(
+            WatchedVideo.user_id == current_user.id
+        )
+        result = await vault_db.execute(stmt)
+        watched_uuids = result.scalars().all()
+
+        return {"status": "success", "watched_uuids": watched_uuids}
 
     @staticmethod
     async def get_all_courses_admin(vault_db: AsyncSession, main_db: AsyncSession):

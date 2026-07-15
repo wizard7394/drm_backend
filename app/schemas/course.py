@@ -59,3 +59,49 @@ class VaultBulkInjectRequest(BaseModel):
 
 class TriggerAutobuildRequest(BaseModel):
     batch_name: str
+
+
+class ClientCourseItem(BaseModel):
+    id: int
+    title: str
+    is_active: bool
+
+
+class ClientCourseListResponse(BaseModel):
+    status: str = "success"
+    courses: List[ClientCourseItem]
+
+
+class VaultInfo(BaseModel):
+    uuid: str
+    file_hash: str
+    download_url: Optional[str] = None
+
+
+class CourseNodeItem(BaseModel):
+    id: int
+    parent_id: Optional[int] = None
+    item_type: str
+    title: str
+    sort_order: int
+    duration: Optional[int] = None
+    attachments: Optional[str] = None
+    vault: Optional[VaultInfo] = None
+    children: List["CourseNodeItem"] = []
+
+
+class ClientCourseDetailsResponse(BaseModel):
+    id: int
+    title: str
+    watermark_text: Optional[str] = None
+    watermark_color: Optional[str] = None
+    sections: List[CourseNodeItem]
+
+
+class WatchedVideoResponse(BaseModel):
+    status: str = "success"
+
+
+class WatchedVideosListResponse(BaseModel):
+    status: str = "success"
+    watched_uuids: List[str]

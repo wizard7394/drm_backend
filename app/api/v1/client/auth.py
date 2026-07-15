@@ -6,7 +6,6 @@ from app.schemas.auth import RequestOtpSchema, VerifyRequest
 
 from app.core.database import get_db
 
-
 router = APIRouter()
 
 
@@ -19,5 +18,8 @@ async def request_otp(
 
 
 @router.post("/verify-otp")
-async def verify_otp(payload: VerifyRequest, db: AsyncSession = Depends(get_db)):
-    return await AuthService.verify_otp(payload, db)
+async def verify_otp(
+    payload: VerifyRequest, request: Request, db: AsyncSession = Depends(get_db)
+):
+    client_ip = request.client.host if request.client else "127.0.0.1"
+    return await AuthService.verify_otp(payload, client_ip, db)

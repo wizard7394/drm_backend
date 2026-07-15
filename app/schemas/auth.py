@@ -1,23 +1,19 @@
-from pydantic import BaseModel
-from pydantic import Field
+from pydantic import BaseModel, Field
 from typing import Optional
 
 
-class LoginRequest(BaseModel):
-    mobile: str
-    hardware_id: str
-    os_type: str = "unknown"
-    device_name: str = "unknown"
+class RequestOtpSchema(BaseModel):
+    identifier: str = Field(
+        ..., min_length=5, max_length=100, description="User mobile number or email"
+    )
+    hardware_id: str = Field(
+        ..., min_length=10, max_length=255, description="Unique hardware identifier"
+    )
+    system_specs: Optional[str] = Field("Unknown", max_length=1000)
 
 
 class VerifyRequest(BaseModel):
-    mobile: str
-    code: str
-    hardware_id: str
-    system_specs: Optional[str] = "Unknown"
-
-
-class RequestOtpSchema(BaseModel):
-    mobile: str = Field(..., description="User mobile number")
-    hardware_id: str = Field(..., description="Unique hardware identifier")
-    system_specs: Optional[str] = "Unknown"
+    identifier: str = Field(..., min_length=5, max_length=100)
+    code: str = Field(..., min_length=6, max_length=6)
+    hardware_id: str = Field(..., min_length=10, max_length=255)
+    system_specs: Optional[str] = Field("Unknown", max_length=1000)

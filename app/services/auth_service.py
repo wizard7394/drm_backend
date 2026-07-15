@@ -3,7 +3,7 @@ import bcrypt
 from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from app.core.security import create_access_token, create_admin_access_token
 
 from app.models.user import User
@@ -21,7 +21,6 @@ from app.schemas.auth import RequestOtpSchema, VerifyRequest
 from app.core.errors import AppErrors
 
 
-# Helper to generate timezone-naive UTC datetime for asyncpg compatibility
 def get_naive_utc_now():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
@@ -31,6 +30,7 @@ class AuthService:
     async def request_otp(payload: RequestOtpSchema, ip_address: str, db: AsyncSession):
         now = get_naive_utc_now()
         hardware_id = payload.hardware_id
+        identifier = payload.identifier
 
         blacklisted_query = await db.execute(
             select(BlacklistedHardware).where(
@@ -60,12 +60,14 @@ class AuthService:
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="IP_RATE_LIMITED"
             )
 
-        user_query = await db.execute(select(User).where(User.mobile == payload.mobile))
+        user_query = await db.execute(
+            select(User).where(or_(User.mobile == identifier, User.email == identifier))
+        )
         user = user_query.scalars().first()
 
         if not user or not user.is_active:
             attempt = UnauthorizedAttempt(
-                mobile=payload.mobile,
+                mobile=identifier,
                 hardware_id=hardware_id,
                 ip_address=ip_address,
                 attempted_at=now,
@@ -97,29 +99,54 @@ class AuthService:
 
         await db.commit()
 
-        print(f"\n[SECURITY] OTP for {payload.mobile}: {secure_otp}\n")
+        print(f"\n[SECURITY] OTP for {identifier}: {secure_otp}\n")
 
         return {"status": "success", "message": "verification_code_sent"}
 
     @staticmethod
-    async def verify_otp(payload: VerifyRequest, db: AsyncSession):
-        user_query = await db.execute(select(User).where(User.mobile == payload.mobile))
+    async def verify_otp(payload: VerifyRequest, ip_address: str, db: AsyncSession):
+        now_naive = get_naive_utc_now()
+        one_hour_ago = now_naive - timedelta(hours=1)
+
+        ip_count_query = await db.execute(
+            select(func.count(UnauthorizedAttempt.id))
+            .where(UnauthorizedAttempt.ip_address == ip_address)
+            .where(UnauthorizedAttempt.attempted_at >= one_hour_ago)
+        )
+        if (ip_count_query.scalar() or 0) >= 5:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="IP_RATE_LIMITED"
+            )
+
+        identifier = payload.identifier
+        user_query = await db.execute(
+            select(User).where(or_(User.mobile == identifier, User.email == identifier))
+        )
         user = user_query.scalars().first()
 
         if not user or not user.is_active:
             raise AppErrors.USER_NOT_FOUND
 
+        async def register_failed_attempt():
+            attempt = UnauthorizedAttempt(
+                mobile=identifier,
+                hardware_id=payload.hardware_id,
+                ip_address=ip_address,
+                attempted_at=now_naive,
+            )
+            db.add(attempt)
+            await db.commit()
+
         if not user.otp_code or user.otp_code != payload.code:
+            await register_failed_attempt()
             raise AppErrors.INVALID_OTP
 
-        now_naive = get_naive_utc_now()
         expire_time = user.otp_expire
-
-        # Neutralize any timezone info if present in the database record
         if expire_time and expire_time.tzinfo is not None:
             expire_time = expire_time.replace(tzinfo=None)
 
         if not expire_time or now_naive > expire_time:
+            await register_failed_attempt()
             raise AppErrors.OTP_EXPIRED
 
         user.otp_code = None
@@ -165,8 +192,9 @@ class AuthService:
         current_device.last_login = now_naive
         await db.commit()
 
+        primary_identifier = user.mobile or user.email or identifier
         access_token = create_access_token(
-            data={"sub": user.mobile, "hid": current_device.hardware_id}
+            data={"sub": primary_identifier, "hid": current_device.hardware_id}
         )
 
         return {
