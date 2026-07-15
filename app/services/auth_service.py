@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from app.core.security import create_access_token, create_admin_access_token
 
 from app.models.user import User
 from app.models.admin import Admin
@@ -17,7 +18,6 @@ from app.models.security_log import (
 )
 
 from app.schemas.auth import RequestOtpSchema, VerifyRequest
-from app.core.security import create_access_token
 from app.core.errors import AppErrors
 
 
@@ -176,27 +176,56 @@ class AuthService:
         }
 
     @staticmethod
-    async def admin_login(form_data, db: AsyncSession):
+    async def admin_login(form_data, ip_address: str, db: AsyncSession):
+        now = get_naive_utc_now()
+        one_hour_ago = now - timedelta(hours=1)
+
+        ip_count_query = await db.execute(
+            select(func.count(UnauthorizedAttempt.id))
+            .where(UnauthorizedAttempt.ip_address == ip_address)
+            .where(UnauthorizedAttempt.attempted_at >= one_hour_ago)
+        )
+        ip_attempts = ip_count_query.scalar() or 0
+
+        if ip_attempts >= 5:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="IP_RATE_LIMITED"
+            )
+
         admin_query = await db.execute(
             select(Admin).where(Admin.username == form_data.username)
         )
         admin_user = admin_query.scalars().first()
 
-        if not admin_user:
-            raise AppErrors.INVALID_CREDENTIALS
+        dummy_hash = b"$2b$12$vqO6gXn9L0oZ5z2K2o5sYuqO6gXn9L0oZ5z2K2o5sYuqO6gXn9L0o"
+        is_password_correct = False
 
-        is_password_correct = bcrypt.checkpw(
-            form_data.password.encode("utf-8"),
-            admin_user.hashed_password.encode("utf-8"),
-        )
+        if admin_user:
+            is_password_correct = bcrypt.checkpw(
+                form_data.password.encode("utf-8"),
+                admin_user.hashed_password.encode("utf-8"),
+            )
+        else:
+            bcrypt.checkpw(
+                form_data.password.encode("utf-8"),
+                dummy_hash,
+            )
 
-        if not is_password_correct:
+        if not admin_user or not is_password_correct:
+            attempt = UnauthorizedAttempt(
+                mobile=form_data.username,
+                hardware_id="ADMIN_LOGIN_ATTEMPT",
+                ip_address=ip_address,
+                attempted_at=now,
+            )
+            db.add(attempt)
+            await db.commit()
             raise AppErrors.INVALID_CREDENTIALS
 
         if not admin_user.is_active:
             raise AppErrors.ADMIN_DISABLED
 
-        access_token = create_access_token(
+        access_token = create_admin_access_token(
             data={"sub": admin_user.username, "role": "super_admin"}
         )
 
