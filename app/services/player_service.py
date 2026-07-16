@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
 
@@ -9,9 +9,9 @@ from app.models.user import User
 from app.core.errors import AppErrors
 
 
-class StreamService:
+class PlayerService:
     @staticmethod
-    async def get_video_keys(
+    async def get_video_manifest(
         course_id: int,
         video_id: int,
         current_user: User,
@@ -22,7 +22,7 @@ class StreamService:
             select(License).where(
                 License.user_id == current_user.id,
                 License.course_id == course_id,
-                text("licenses.is_active = true"),
+                License.is_active,
             )
         )
         db_license = license_query.scalars().first()
@@ -54,7 +54,7 @@ class StreamService:
         v_item = db_video.vault_item
         aes_key = getattr(v_item, "aes_key", getattr(v_item, "decryption_key", None))
         aes_iv = getattr(v_item, "aes_iv", None)
-        print(aes_key)
+
         return {
             "status": "success",
             "video_id": video_id,

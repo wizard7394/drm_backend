@@ -13,7 +13,9 @@ async def submit_telemetry_batch(
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
 ):
+    identifier = current_user.mobile or current_user.email or str(current_user.id)
+
     background_tasks.add_task(
-        TelemetryService.process_telemetry_batch, current_user.mobile, payload
+        TelemetryService.process_telemetry_batch, identifier, payload
     )
     return {"status": "processing", "message": "Telemetry queued."}
