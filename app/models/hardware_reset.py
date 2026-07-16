@@ -1,19 +1,25 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Boolean  # noqa: F401
-from sqlalchemy.orm import relationship
+from datetime import datetime
+from typing import Optional, Any
+from sqlalchemy import String, DateTime, ForeignKey, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.core.database import Base
 
 
 class HardwareReset(Base):
     __tablename__ = "hardware_resets"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"))
-    license_id = Column(Integer, index=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    license_id: Mapped[int] = mapped_column(index=True)
 
-    old_hardware_id = Column(String)
-    new_hardware_id = Column(String)
-    status = Column(String, default="pending")
-    requested_at = Column(DateTime)
-    approved_at = Column(DateTime, nullable=True)
+    old_hardware_id: Mapped[str] = mapped_column(String(255))
+    new_hardware_id: Mapped[str] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(50), default="pending")
 
-    user = relationship("User")
+    requested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+    user: Mapped[Any] = relationship("User")

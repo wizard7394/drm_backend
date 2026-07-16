@@ -1,47 +1,55 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, JSON, DateTime
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
+from datetime import datetime
+from typing import Optional, List, Dict, Any
+from sqlalchemy import String, Integer, Boolean, DateTime, ForeignKey, JSON, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.core.database import VaultBase
 
 
 class WatchedVideo(VaultBase):
     __tablename__ = "watched_videos"
 
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, index=True)
-    vault_uuid = Column(String, index=True)
-    watched_at = Column(DateTime(timezone=True), server_default=func.now())
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(index=True)
+    vault_uuid: Mapped[str] = mapped_column(String(50), index=True)
+    watched_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class Course(VaultBase):
     __tablename__ = "courses"
 
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, index=True)
-    watermark_text = Column(String, nullable=True)
-    watermark_color = Column(String, nullable=True)
-    is_active = Column(Integer, default=1)
-    base_stream_url = Column(String(500), nullable=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    title: Mapped[str] = mapped_column(String(250), index=True)
+    watermark_text: Mapped[Optional[str]] = mapped_column(String(250))
+    watermark_color: Mapped[Optional[str]] = mapped_column(String(50))
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    base_stream_url: Mapped[Optional[str]] = mapped_column(String(500))
 
-    nodes = relationship("CourseNode", back_populates="course", cascade="all, delete")
+    nodes: Mapped[List["CourseNode"]] = relationship(
+        "CourseNode", back_populates="course", cascade="all, delete"
+    )
 
 
 class CourseNode(VaultBase):
     __tablename__ = "course_nodes"
 
-    id = Column(Integer, primary_key=True, index=True)
-    course_id = Column(Integer, ForeignKey("courses.id"))
-    parent_id = Column(Integer, ForeignKey("course_nodes.id"), nullable=True)
-    item_type = Column(String)
-    title = Column(String)
-    sort_order = Column(Integer, default=0)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    course_id: Mapped[int] = mapped_column(ForeignKey("courses.id"))
+    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("course_nodes.id"))
+    item_type: Mapped[str] = mapped_column(String(50))
+    title: Mapped[str] = mapped_column(String(250))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
-    video_url = Column(String, nullable=True)
-    duration = Column(Integer, nullable=True)
-    attachments = Column(JSON, nullable=True)
+    video_url: Mapped[Optional[str]] = mapped_column(String(1000))
+    duration: Mapped[Optional[int]] = mapped_column(Integer)
+    attachments: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON)
 
-    vault_id = Column(Integer, ForeignKey("vault_items.id"), nullable=True)
+    vault_id: Mapped[Optional[int]] = mapped_column(ForeignKey("vault_items.id"))
 
-    course = relationship("Course", back_populates="nodes")
-    parent = relationship("CourseNode", remote_side=[id], cascade="all, delete")
-    vault_item = relationship("VaultItem")
+    course: Mapped["Course"] = relationship("Course", back_populates="nodes")
+    parent: Mapped[Optional["CourseNode"]] = relationship(
+        "CourseNode", remote_side=[id], cascade="all, delete"
+    )
+    vault_item: Mapped[Optional[Any]] = relationship("VaultItem")
