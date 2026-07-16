@@ -1,23 +1,42 @@
-import os
-from dotenv import load_dotenv
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+from sqlalchemy.orm import declarative_base
 
-load_dotenv()
+from app.core.config import settings
 
-DATABASE_URL = os.getenv("DATABASE_URL")
-VAULT_DATABASE_URL = os.getenv("VAULT_DATABASE_URL")
+if not settings.DATABASE_URL or not settings.VAULT_DATABASE_URL:
+    raise ValueError("DATABASE_URL or VAULT_DATABASE_URL is missing in configuration.")
 
-if not DATABASE_URL or not VAULT_DATABASE_URL:
-    raise ValueError("Database URLs are not set in .env file")
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=False,
+    pool_size=20,
+    max_overflow=10,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+)
 
-engine = create_async_engine(DATABASE_URL, echo=False)
-SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+SessionLocal = async_sessionmaker(
+    bind=engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autoflush=False,
+)
 Base = declarative_base()
 
-vault_engine = create_async_engine(VAULT_DATABASE_URL, echo=False)
-VaultSessionLocal = sessionmaker(
-    vault_engine, class_=AsyncSession, expire_on_commit=False
+vault_engine = create_async_engine(
+    settings.VAULT_DATABASE_URL,
+    echo=False,
+    pool_size=20,
+    max_overflow=10,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+)
+
+VaultSessionLocal = async_sessionmaker(
+    bind=vault_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autoflush=False,
 )
 VaultBase = declarative_base()
 

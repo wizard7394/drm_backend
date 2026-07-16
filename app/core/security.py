@@ -1,37 +1,17 @@
-import os
 import base64
 import json
 from datetime import datetime, timedelta, timezone
+
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import serialization
 from pydantic import BaseModel
-from dotenv import load_dotenv
 from jose import jwt
 
-load_dotenv()
-
-SECRET_KEY = os.getenv("SECRET_KEY")
-ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY")
-
-if not SECRET_KEY or not ADMIN_SECRET_KEY:
-    raise ValueError(
-        "SECURITY CONFIGURATION ERROR: SECRET_KEY or ADMIN_SECRET_KEY is missing."
-    )
-
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
-
-CLIENT_TOKEN_EXPIRE_MINUTES = int(os.getenv("CLIENT_TOKEN_EXPIRE_MINUTES", 60))
-ADMIN_TOKEN_EXPIRE_MINUTES = int(os.getenv("ADMIN_TOKEN_EXPIRE_MINUTES", 30))
-
-PRIVATE_KEY_PEM = os.getenv("RSA_PRIVATE_KEY")
-if not PRIVATE_KEY_PEM:
-    raise ValueError(
-        "RSA_PRIVATE_KEY is missing. System must not generate runtime keys."
-    )
+from app.core.config import settings
 
 try:
-    clean_pem = PRIVATE_KEY_PEM.strip(" \"'")
+    clean_pem = settings.RSA_PRIVATE_KEY.strip(" \"'")
     clean_pem = clean_pem.replace("\\n", "\n")
     private_key_formatted = clean_pem.encode("utf-8")
 
@@ -66,13 +46,19 @@ def sign_payload(payload: BaseModel) -> str:
 
 def create_access_token(data: dict) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=CLIENT_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.CLIENT_TOKEN_EXPIRE_MINUTES
+    )
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def create_admin_access_token(data: dict) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=ADMIN_TOKEN_EXPIRE_MINUTES)
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.ADMIN_TOKEN_EXPIRE_MINUTES
+    )
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, ADMIN_SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(
+        to_encode, settings.ADMIN_SECRET_KEY, algorithm=settings.ALGORITHM
+    )
