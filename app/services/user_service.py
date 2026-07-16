@@ -5,7 +5,7 @@ from app.models.user import User
 from app.models.transaction import Transaction
 from app.models.course import Course, WatchedVideo
 from app.models.license import License
-from app.schemas.user import UserCreateAdmin, UserUpdateAdmin
+from app.schemas.admin.user import UserCreateAdmin, UserUpdateAdmin
 
 
 class UserService:

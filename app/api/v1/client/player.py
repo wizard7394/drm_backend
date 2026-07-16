@@ -5,7 +5,7 @@ from app.models.user import User
 from app.services.player_service import PlayerService
 from app.core.database import get_db, get_vault_db
 from app.api.v1.client.dependencies import get_current_user
-from app.schemas.player import VideoManifestResponse
+from app.schemas.client.player import VideoManifestResponse
 
 router = APIRouter()
 

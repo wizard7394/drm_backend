@@ -1,6 +1,6 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, status
 from app.models.user import User
-from app.schemas.telemetry import TelemetryBatch
+from app.schemas.client.telemetry import TelemetryBatch
 from app.services.telemetry_service import TelemetryService
 from app.api.v1.client.dependencies import get_current_user
 

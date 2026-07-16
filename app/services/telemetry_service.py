@@ -1,7 +1,7 @@
 import json
 import os
 from datetime import datetime, timezone
-from app.schemas.telemetry import TelemetryBatch
+from app.schemas.client.telemetry import TelemetryBatch
 
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)

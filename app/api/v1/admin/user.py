@@ -6,7 +6,7 @@ from app.api.v1.admin.dependencies import get_current_admin
 from app.models.admin import Admin
 from app.services.user_service import UserService
 
-from app.schemas.user import (
+from app.schemas.admin.user import (
     UserCreateAdmin,
     UserUpdateAdmin,
     UserListResponse,

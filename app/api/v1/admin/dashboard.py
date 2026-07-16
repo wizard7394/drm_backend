@@ -5,7 +5,7 @@ from app.core.database import get_db, get_vault_db
 from app.api.v1.admin.dependencies import get_current_admin
 from app.models.admin import Admin
 from app.services.dashboard_service import DashboardService
-from app.schemas.dashboard import DashboardStatsResponse
+from app.schemas.admin.dashboard import DashboardStatsResponse
 
 router = APIRouter()
 

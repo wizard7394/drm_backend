@@ -4,7 +4,7 @@ from app.models.user import User
 from app.models.device import Device
 from app.models.hardware_reset import HardwareReset
 from app.core.errors import AppErrors
-from app.schemas.monitoring import BlockDeviceRequest, ResetHardwareRequest
+from app.schemas.admin.monitoring import BlockDeviceRequest, ResetHardwareRequest
 
 
 class MonitoringService:

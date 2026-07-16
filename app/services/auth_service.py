@@ -17,7 +17,7 @@ from app.models.security_log import (
     DeviceAuditLog,
 )
 
-from app.schemas.auth import RequestOtpSchema, VerifyRequest
+from app.schemas.client.auth import RequestOtpSchema, VerifyRequest
 from app.core.errors import AppErrors
 
 

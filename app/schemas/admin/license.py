@@ -1,16 +1,16 @@
-from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class LicenseBase(BaseModel):
     course_id: int
-    license_key: str
+    license_key: str = Field(..., min_length=10, max_length=255)
 
 
 class LicenseCreate(LicenseBase):
     user_id: int
-    expires_at: Optional[datetime] = None
+    expires_at: Optional[datetime] = Field(default=None)
 
 
 class LicenseResponse(LicenseBase):
@@ -19,7 +19,6 @@ class LicenseResponse(LicenseBase):
     reset_count: int
     is_active: bool
     created_at: datetime
-    expires_at: Optional[datetime]
+    expires_at: Optional[datetime] = Field(default=None)
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

@@ -9,7 +9,7 @@ from app.models.course import CourseNode
 from pydantic import BaseModel
 from app.services.course_service import CourseService
 
-from app.schemas.course import (
+from app.schemas.admin.course import (
     CourseCreate,
     CourseUpdate,
     NodeCreate,

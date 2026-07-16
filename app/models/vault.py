@@ -1,16 +1,20 @@
-from sqlalchemy import Column, Integer, String
+from typing import Optional
+
+from sqlalchemy import String
+from sqlalchemy.orm import Mapped, mapped_column
+
 from app.core.database import VaultBase
 
 
 class VaultItem(VaultBase):
     __tablename__ = "vault_items"
 
-    id = Column(Integer, primary_key=True, index=True)
-    uuid = Column(String, unique=True, index=True)
-    batch_name = Column(String, index=True, nullable=True)
-    original_filename = Column(String, nullable=True)
-    file_hash = Column(String, index=True)
-    download_url = Column(String)
-    decryption_key = Column(String)
-    aes_iv = Column(String, nullable=True)
-    duration = Column(Integer, nullable=True)
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    uuid: Mapped[str] = mapped_column(String(36), unique=True, index=True)
+    batch_name: Mapped[Optional[str]] = mapped_column(String(100), index=True)
+    original_filename: Mapped[Optional[str]] = mapped_column(String(255))
+    file_hash: Mapped[str] = mapped_column(String(128), index=True)
+    download_url: Mapped[str] = mapped_column(String(1024))
+    decryption_key: Mapped[str] = mapped_column(String(255))
+    aes_iv: Mapped[Optional[str]] = mapped_column(String(32))
+    duration: Mapped[Optional[int]] = mapped_column()

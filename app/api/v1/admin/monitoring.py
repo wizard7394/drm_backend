@@ -4,7 +4,7 @@ from app.core.database import get_db
 from app.api.v1.admin.dependencies import get_current_admin
 from app.models.admin import Admin
 from app.services.monitoring_service import MonitoringService
-from app.schemas.monitoring import (
+from app.schemas.admin.monitoring import (
     UserMonitoringResponse,
     BlockDeviceRequest,
     ResetHardwareRequest,

@@ -4,7 +4,7 @@ from app.models.user import User
 from app.services.course_service import CourseService
 from app.core.database import get_db, get_vault_db
 from app.api.v1.client.dependencies import get_current_user
-from app.schemas.course import (
+from app.schemas.admin.course import (
     ClientCourseListResponse,
     ClientCourseDetailsResponse,
     WatchedVideoResponse,

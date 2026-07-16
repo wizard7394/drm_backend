@@ -9,7 +9,7 @@ from app.models.license import License
 from app.models.user import User
 from app.models.vault import VaultItem
 from app.core.errors import AppErrors
-from app.schemas.course import (
+from app.schemas.admin.course import (
     CourseCreate,
     CourseUpdate,
     NodeCreate,
