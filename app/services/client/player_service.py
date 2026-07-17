@@ -6,18 +6,33 @@ from datetime import datetime, timezone
 from app.models.course import CourseNode
 from app.models.license import License
 from app.models.user import User
+from app.models.device import Device
 from app.core.errors import AppErrors
 
 
-class PlayerService:
+class ClientPlayerService:
     @staticmethod
     async def get_video_manifest(
         course_id: int,
         video_id: int,
+        hardware_id: str,
         current_user: User,
         main_db: AsyncSession,
         vault_db: AsyncSession,
     ):
+        device_query = await main_db.execute(
+            select(Device).where(
+                Device.user_id == current_user.id, Device.hardware_id == hardware_id
+            )
+        )
+        device = device_query.scalars().first()
+
+        if not device:
+            raise Exception("Access Denied: Hardware ID is not registered")
+
+        if device.is_blocked:
+            raise Exception("Access Denied: Device is blocked")
+
         license_query = await main_db.execute(
             select(License).where(
                 License.user_id == current_user.id,

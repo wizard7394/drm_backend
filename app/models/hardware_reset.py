@@ -1,25 +1,23 @@
-from datetime import datetime
-from typing import Optional, Any
-from sqlalchemy import String, DateTime, ForeignKey, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 
 class HardwareReset(Base):
     __tablename__ = "hardware_resets"
 
-    id: Mapped[int] = mapped_column(primary_key=True, index=True)
-    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    license_id: Mapped[int] = mapped_column(index=True)
-
-    old_hardware_id: Mapped[str] = mapped_column(String(255))
-    new_hardware_id: Mapped[str] = mapped_column(String(255))
-    status: Mapped[str] = mapped_column(String(50), default="pending")
-
-    requested_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now()
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    previous_hardware_id = Column(String(255), nullable=True)
+    reason = Column(String(1000), nullable=False)
+    status = Column(String(50), default="pending", nullable=False)
+    approved_by_admin_id = Column(
+        Integer, ForeignKey("admins.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    user: Mapped[Any] = relationship("User")
+    user = relationship("User", backref="hardware_resets")
+    admin = relationship("Admin", backref="approved_resets")

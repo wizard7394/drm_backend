@@ -2,8 +2,6 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.database import engine, Base, vault_engine, VaultBase
-
 from app.api.v1.webhooks.woocommerce_webhook import router as woocommerce_router
 
 from app.api.v1.client.auth import router as client_auth_router
@@ -20,12 +18,6 @@ from app.api.v1.admin.user import router as admin_user_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-    async with vault_engine.begin() as conn:
-        await conn.run_sync(VaultBase.metadata.create_all)
-
     yield
 
 
@@ -38,20 +30,19 @@ app.add_middleware(
         "https://api.devstorage.site",
         "http://localhost",
         "http://localhost:8080",
-        "*",
     ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
 )
 
 
 @app.get("/")
 def home():
-    return {"status": "ok", "service": "Nabegheha Secure Core is running"}
+    return {"status": "success", "service": "Secure Core API is running smoothly"}
 
 
-app.include_router(woocommerce_router, prefix="/api/v1")
+app.include_router(woocommerce_router, prefix="/api/v1", tags=["Webhooks"])
 
 app.include_router(
     client_auth_router, prefix="/api/v1/client/auth", tags=["Client - Authentication"]

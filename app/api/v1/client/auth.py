@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.auth_service import AuthService
+from app.services.admin.auth_service import AuthService
 from app.schemas.client.auth import RequestOtpSchema, VerifyRequest
 
 from app.core.database import get_db

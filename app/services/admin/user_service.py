@@ -1,4 +1,4 @@
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 from app.models.user import User
@@ -8,7 +8,7 @@ from app.models.license import License
 from app.schemas.admin.user import UserCreateAdmin, UserUpdateAdmin
 
 
-class UserService:
+class AdminUserService:
     @staticmethod
     async def get_all_users(db: AsyncSession):
         result = await db.execute(select(User).order_by(desc(User.id)))
@@ -33,7 +33,9 @@ class UserService:
             select(User).where(User.mobile == payload.mobile)
         )
         if existing_query.scalars().first():
-            raise HTTPException(status_code=400, detail="User already exists")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="User already exists"
+            )
 
         new_user = User(mobile=payload.mobile, is_active=payload.is_active)
         db.add(new_user)
@@ -46,7 +48,9 @@ class UserService:
         query = await db.execute(select(User).where(User.id == user_id))
         user = query.scalars().first()
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+            )
 
         update_data = payload.model_dump(exclude_unset=True)
         for key, value in update_data.items():
@@ -60,7 +64,9 @@ class UserService:
         query = await db.execute(select(User).where(User.id == user_id))
         user = query.scalars().first()
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+            )
 
         return {
             "id": user.id,

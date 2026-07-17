@@ -8,7 +8,7 @@ from app.models.transaction import Transaction
 from app.models.security_log import UnauthorizedAttempt
 
 
-class DashboardService:
+class AdminDashboardService:
     @staticmethod
     async def get_stats(main_db: AsyncSession, vault_db: AsyncSession):
         users_query = await main_db.execute(select(func.count(User.id)))
@@ -29,7 +29,7 @@ class DashboardService:
                 Transaction.status == "completed"
             )
         )
-        total_revenue = revenue_query.scalar() or 0.0
+        total_revenue = revenue_query.scalar() or 0
 
         logs_query = await main_db.execute(
             select(UnauthorizedAttempt)
