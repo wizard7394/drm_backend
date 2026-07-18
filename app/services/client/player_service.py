@@ -7,6 +7,7 @@ from app.models.course import CourseNode
 from app.models.license import License
 from app.models.user import User
 from app.models.device import Device
+from app.models.vault import VaultItem
 from app.core.errors import AppErrors
 
 
@@ -14,7 +15,7 @@ class ClientPlayerService:
     @staticmethod
     async def get_video_manifest(
         course_id: int,
-        video_id: int,
+        vault_uuid: str,
         hardware_id: str,
         current_user: User,
         main_db: AsyncSession,
@@ -54,9 +55,10 @@ class ClientPlayerService:
 
         video_query = await vault_db.execute(
             select(CourseNode)
+            .join(VaultItem, CourseNode.vault_id == VaultItem.id)
             .options(selectinload(CourseNode.vault_item))
             .where(
-                CourseNode.id == video_id,
+                VaultItem.uuid == vault_uuid,
                 CourseNode.course_id == course_id,
                 CourseNode.item_type == "video",
             )
@@ -72,7 +74,7 @@ class ClientPlayerService:
 
         return {
             "status": "success",
-            "video_id": video_id,
+            "video_id": db_video.id,
             "uuid": v_item.uuid,
             "file_hash": v_item.file_hash,
             "aes_key": aes_key,

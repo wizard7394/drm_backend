@@ -1,5 +1,6 @@
-from typing import List, Optional
-from pydantic import BaseModel, Field, ConfigDict
+import json
+from typing import List, Optional, Any, Union
+from pydantic import BaseModel, Field, field_validator
 
 
 class CourseCreate(BaseModel):
@@ -24,8 +25,21 @@ class NodeCreate(BaseModel):
     sort_order: int = Field(default=0)
     video_url: Optional[str] = Field(default=None, max_length=1024)
     duration: Optional[int] = Field(default=None)
-    attachments: Optional[str] = Field(default=None, max_length=2048)
+    attachments: Optional[Union[List[Any], str]] = Field(default=None)
     vault_id: Optional[int] = Field(default=None)
+
+    @field_validator("attachments", mode="before")
+    @classmethod
+    def parse_attachments(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return None
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                raise ValueError("invalid_json_format")
+        return value
 
 
 class NodeUpdate(BaseModel):
@@ -35,8 +49,21 @@ class NodeUpdate(BaseModel):
     sort_order: Optional[int] = Field(default=None)
     video_url: Optional[str] = Field(default=None, max_length=1024)
     duration: Optional[int] = Field(default=None)
-    attachments: Optional[str] = Field(default=None, max_length=2048)
+    attachments: Optional[Union[List[Any], str]] = Field(default=None)
     vault_id: Optional[int] = Field(default=None)
+
+    @field_validator("attachments", mode="before")
+    @classmethod
+    def parse_attachments(cls, value):
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return None
+            try:
+                return json.loads(value)
+            except json.JSONDecodeError:
+                raise ValueError("invalid_json_format")
+        return value
 
 
 class VaultInjectItem(BaseModel):

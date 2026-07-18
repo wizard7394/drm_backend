@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import List, Optional, Any, Union
 from pydantic import BaseModel, Field
 
 
@@ -26,7 +26,7 @@ class CourseNodeItem(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     sort_order: int
     duration: Optional[int] = Field(default=None)
-    attachments: Optional[str] = Field(default=None, max_length=2048)
+    attachments: Optional[Union[List[Any], str, dict]] = Field(default=None)
     vault: Optional[VaultInfo] = Field(default=None)
     children: List["CourseNodeItem"] = Field(default_factory=list)
 
