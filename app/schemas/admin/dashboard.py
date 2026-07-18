@@ -20,3 +20,10 @@ class DashboardStatsResponse(BaseModel):
     total_active_licenses: int
     total_revenue: int
     recent_logs: List[SecurityLogItem] = Field(default_factory=list)
+    cpu_usage: str
+    ram_usage: str
+    storage: str
+    system_os: str
+    online_users: int
+    blocked_devices: int
+    failed_logins: int

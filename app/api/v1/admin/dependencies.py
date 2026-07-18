@@ -4,7 +4,7 @@ from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.core.security import ALGORITHM, ADMIN_SECRET_KEY
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.admin import Admin
 from app.core.errors import AppErrors
@@ -16,7 +16,9 @@ async def get_current_admin(
     token: str = Depends(admin_oauth2_scheme), db: AsyncSession = Depends(get_db)
 ):
     try:
-        payload = jwt.decode(token, ADMIN_SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            token, settings.ADMIN_SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
         username: str = payload.get("sub")
         role: str = payload.get("role")
 

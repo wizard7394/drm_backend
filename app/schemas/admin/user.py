@@ -73,3 +73,34 @@ class AdminCourseItem(BaseModel):
 
 class UserCoursesResponse(BaseModel):
     courses: List[AdminCourseItem] = Field(default_factory=list)
+
+
+class AdminDeviceItem(BaseModel):
+    id: int
+    hardware_id: str
+    system_specs: Optional[str] = None
+    os_type: Optional[str] = None
+    device_name: Optional[str] = None
+    is_blocked: bool
+    created_at: datetime
+    last_login: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserDevicesResponse(BaseModel):
+    devices: List[AdminDeviceItem] = Field(default_factory=list)
+
+
+class AdminUserLogItem(BaseModel):
+    id: int
+    hardware_id: str
+    action: str
+    reason: Optional[str] = None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class UserLogsResponse(BaseModel):
+    logs: List[AdminUserLogItem] = Field(default_factory=list)

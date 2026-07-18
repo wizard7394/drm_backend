@@ -7,7 +7,7 @@ from app.api.v1.admin.dependencies import get_current_admin
 from app.models.admin import Admin
 from app.models.course import CourseNode
 from pydantic import BaseModel
-from app.services.course_service import CourseService
+from app.services.admin.course_service import AdminCourseService
 
 from app.schemas.admin.course import (
     CourseCreate,
@@ -27,7 +27,7 @@ async def get_all_courses_for_admin(
     db: AsyncSession = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
-    return await CourseService.get_all_courses_admin(vault_db, db)
+    return await AdminCourseService.get_all_courses_admin(vault_db, db)
 
 
 @router.post("/create")
@@ -36,7 +36,7 @@ async def create_new_course(
     vault_db: AsyncSession = Depends(get_vault_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
-    return await CourseService.create_course(data, vault_db)
+    return await AdminCourseService.create_course(data, vault_db)
 
 
 @router.put("/update/{course_id}")
@@ -46,7 +46,7 @@ async def update_existing_course(
     vault_db: AsyncSession = Depends(get_vault_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
-    return await CourseService.update_course(course_id, data, vault_db)
+    return await AdminCourseService.update_course(course_id, data, vault_db)
 
 
 @router.delete("/delete/{course_id}")
@@ -55,7 +55,7 @@ async def delete_existing_course(
     vault_db: AsyncSession = Depends(get_vault_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
-    return await CourseService.delete_course(course_id, vault_db)
+    return await AdminCourseService.delete_course(course_id, vault_db)
 
 
 @router.post("/node/create")
@@ -64,7 +64,7 @@ async def create_course_node(
     vault_db: AsyncSession = Depends(get_vault_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
-    return await CourseService.create_node(data, vault_db)
+    return await AdminCourseService.create_node(data, vault_db)
 
 
 @router.put("/node/update/{node_id}")
@@ -74,7 +74,7 @@ async def update_course_node(
     vault_db: AsyncSession = Depends(get_vault_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
-    return await CourseService.update_node(node_id, data, vault_db)
+    return await AdminCourseService.update_node(node_id, data, vault_db)
 
 
 @router.delete("/node/delete/{node_id}")
@@ -83,7 +83,7 @@ async def delete_course_node(
     vault_db: AsyncSession = Depends(get_vault_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
-    return await CourseService.delete_node(node_id, vault_db)
+    return await AdminCourseService.delete_node(node_id, vault_db)
 
 
 @router.get("/view/{course_id}")
@@ -92,7 +92,7 @@ async def get_course_tree_for_admin(
     vault_db: AsyncSession = Depends(get_vault_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
-    return await CourseService.get_course_tree_admin(course_id, vault_db)
+    return await AdminCourseService.get_course_tree_admin(course_id, vault_db)
 
 
 class NodeReorderItem(BaseModel):
@@ -122,7 +122,7 @@ async def inject_keys(
     vault_db: AsyncSession = Depends(get_vault_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
-    return await CourseService.inject_vault_keys_bulk(data, vault_db)
+    return await AdminCourseService.inject_vault_keys_bulk(data, vault_db)
 
 
 @router.post("/vault/trigger-autobuild/{course_id}")
@@ -132,4 +132,4 @@ async def trigger_autobuild(
     vault_db: AsyncSession = Depends(get_vault_db),
     current_admin: Admin = Depends(get_current_admin),
 ):
-    return await CourseService.auto_build_course_tree(course_id, payload, vault_db)
+    return await AdminCourseService.auto_build_course_tree(course_id, payload, vault_db)

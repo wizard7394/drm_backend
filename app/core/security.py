@@ -7,6 +7,7 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import serialization
 from pydantic import BaseModel
 from jose import jwt
+from passlib.context import CryptContext
 
 from app.core.config import settings
 
@@ -22,6 +23,16 @@ try:
     public_key = private_key.public_key()
 except Exception as e:
     raise ValueError(f"Failed to parse RSA_PRIVATE_KEY: {e}")
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
 
 
 def get_public_key_pem() -> str:

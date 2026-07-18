@@ -4,7 +4,7 @@ from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 
-from app.core.security import ALGORITHM, SECRET_KEY
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.user import User
 from app.models.device import Device
@@ -17,7 +17,9 @@ async def get_current_user(
     token: str = Depends(client_oauth2_scheme), db: AsyncSession = Depends(get_db)
 ):
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
         identifier: str = payload.get("sub")
         hardware_id: str = payload.get("hid")
 

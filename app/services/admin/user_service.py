@@ -1,6 +1,8 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
+from app.models.device import Device
+from app.models.security_log import DeviceAuditLog
 from app.models.user import User
 from app.models.transaction import Transaction
 from app.models.course import Course, WatchedVideo
@@ -124,3 +126,53 @@ class AdminUserService:
         courses = course_res.scalars().all()
 
         return {"courses": [{"id": c.id, "title": c.title} for c in courses]}
+
+    @staticmethod
+    async def get_user_devices(user_id: int, db: AsyncSession):
+        query = await db.execute(select(Device).where(Device.user_id == user_id))
+        devices = query.scalars().all()
+        return {
+            "devices": [
+                {
+                    "id": d.id,
+                    "hardware_id": d.hardware_id,
+                    "system_specs": d.system_specs,
+                    "os_type": d.os_type,
+                    "device_name": d.device_name,
+                    "is_blocked": d.is_blocked,
+                    "created_at": d.created_at,
+                    "last_login": d.last_login,
+                }
+                for d in devices
+            ]
+        }
+
+    @staticmethod
+    async def get_user_logs(user_id: int, db: AsyncSession):
+        user_query = await db.execute(select(User).where(User.id == user_id))
+        user = user_query.scalars().first()
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+            )
+
+        logs_query = await db.execute(
+            select(DeviceAuditLog)
+            .where(DeviceAuditLog.identifier == user.mobile)
+            .order_by(desc(DeviceAuditLog.id))
+        )
+        logs = logs_query.scalars().all()
+
+        return {
+            "logs": [
+                {
+                    "id": log.id,
+                    "hardware_id": log.hardware_id,
+                    "action": log.action,
+                    "reason": log.reason,
+                    "created_at": log.created_at,
+                }
+                for log in logs
+            ]
+        }
