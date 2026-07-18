@@ -37,7 +37,7 @@ class ClientPlayerService:
             select(License).where(
                 License.user_id == current_user.id,
                 License.course_id == course_id,
-                License.is_active,
+                License.is_active.is_(True),
             )
         )
         db_license = license_query.scalars().first()

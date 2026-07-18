@@ -15,7 +15,7 @@ class ClientCourseService:
         current_user: User, db: AsyncSession, vault_db: AsyncSession
     ):
         stmt = select(License.course_id).where(
-            License.user_id == current_user.id, License.is_active
+            License.user_id == current_user.id, License.is_active.is_(True)
         )
         license_result = await db.execute(stmt)
         course_ids = license_result.scalars().all()
@@ -23,7 +23,9 @@ class ClientCourseService:
         if not course_ids:
             return {"status": "success", "courses": []}
 
-        course_stmt = select(Course).where(Course.id.in_(course_ids), Course.is_active)
+        course_stmt = select(Course).where(
+            Course.id.in_(course_ids), Course.is_active == 1
+        )
         course_result = await vault_db.execute(course_stmt)
         courses = course_result.scalars().all()
 
@@ -44,7 +46,7 @@ class ClientCourseService:
             select(License).where(
                 License.user_id == current_user.id,
                 License.course_id == course_id,
-                License.is_active,
+                License.is_active.is_(True),
             )
         )
         db_license = license_query.scalars().first()
@@ -60,7 +62,7 @@ class ClientCourseService:
                 raise AppErrors.LICENSE_EXPIRED
 
         course_query = await vault_db.execute(
-            select(Course).where(Course.id == course_id, Course.is_active)
+            select(Course).where(Course.id == course_id, Course.is_active == 1)
         )
         course_obj = course_query.scalars().first()
 
@@ -139,5 +141,4 @@ class ClientCourseService:
         )
         result = await vault_db.execute(stmt)
         watched_uuids = result.scalars().all()
-
         return {"status": "success", "watched_uuids": watched_uuids}
