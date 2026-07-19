@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List, Dict, Any
-from sqlalchemy import String, Integer, Boolean, DateTime, ForeignKey, JSON, func
+from sqlalchemy import String, Integer, DateTime, ForeignKey, JSON, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import VaultBase
