@@ -5,16 +5,18 @@ from pydantic import BaseModel, Field, field_validator
 
 class CourseCreate(BaseModel):
     title: str = Field(..., min_length=2, max_length=255)
+    base_stream_url: Optional[str] = Field(default=None, max_length=1024)
     watermark_text: Optional[str] = Field(default=None, max_length=100)
     watermark_color: Optional[str] = Field(default=None, max_length=50)
-    is_active: bool = Field(default=True)
+    is_active: Union[bool, int] = Field(default=1)
 
 
 class CourseUpdate(BaseModel):
-    title: Optional[str] = Field(default=None, min_length=2, max_length=255)
+    title: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    base_stream_url: Optional[str] = Field(default=None, max_length=1024)
     watermark_text: Optional[str] = Field(default=None, max_length=100)
     watermark_color: Optional[str] = Field(default=None, max_length=50)
-    is_active: Optional[bool] = Field(default=None)
+    is_active: Optional[Union[bool, int]] = Field(default=None)
 
 
 class NodeCreate(BaseModel):
@@ -37,7 +39,7 @@ class NodeCreate(BaseModel):
                 return None
             try:
                 return json.loads(value)
-            except json.JSONDecodeError:
+            except Exception:
                 raise ValueError("invalid_json_format")
         return value
 
@@ -61,7 +63,7 @@ class NodeUpdate(BaseModel):
                 return None
             try:
                 return json.loads(value)
-            except json.JSONDecodeError:
+            except Exception:
                 raise ValueError("invalid_json_format")
         return value
 

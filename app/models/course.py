@@ -19,14 +19,12 @@ class WatchedVideo(VaultBase):
 
 class Course(VaultBase):
     __tablename__ = "courses"
-
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     title: Mapped[str] = mapped_column(String(250), index=True)
     watermark_text: Mapped[Optional[str]] = mapped_column(String(250))
     watermark_color: Mapped[Optional[str]] = mapped_column(String(50))
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_active: Mapped[int] = mapped_column(Integer, default=1)
     base_stream_url: Mapped[Optional[str]] = mapped_column(String(500))
-
     nodes: Mapped[List["CourseNode"]] = relationship(
         "CourseNode", back_populates="course", cascade="all, delete"
     )

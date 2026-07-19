@@ -24,7 +24,6 @@ class AdminCourseService:
             select(Course).order_by(Course.id.desc())
         )
         courses = courses_query.scalars().all()
-
         result = []
         for c in courses:
             students_query = await main_db.execute(
@@ -43,7 +42,8 @@ class AdminCourseService:
                 {
                     "id": c.id,
                     "title": c.title,
-                    "is_active": c.is_active,
+                    "base_stream_url": getattr(c, "base_stream_url", None),
+                    "is_active": bool(c.is_active),  # Cast back to bool for Flutter
                     "total_students": students_count,
                     "total_videos": videos_count,
                 }
@@ -111,9 +111,10 @@ class AdminCourseService:
     async def create_course(data: CourseCreate, vault_db: AsyncSession):
         new_course = Course(
             title=data.title,
+            base_stream_url=data.base_stream_url,
             watermark_text=data.watermark_text,
             watermark_color=data.watermark_color,
-            is_active=data.is_active,
+            is_active=1 if data.is_active else 0,  # Cast to int for DB
         )
         vault_db.add(new_course)
         await vault_db.commit()
@@ -126,11 +127,15 @@ class AdminCourseService:
             select(Course).where(Course.id == course_id)
         )
         course = course_query.scalars().first()
-
         if not course:
             raise AppErrors.COURSE_NOT_FOUND
 
         update_data = data.model_dump(exclude_unset=True)
+
+        # Safe casting for Postgres
+        if "is_active" in update_data:
+            update_data["is_active"] = 1 if update_data["is_active"] else 0
+
         for key, value in update_data.items():
             setattr(course, key, value)
 
@@ -179,6 +184,12 @@ class AdminCourseService:
             raise Exception("Node missing from database")
 
         update_data = data.model_dump(exclude_unset=True)
+
+        if "vault_id" in update_data and update_data["vault_id"] is None:
+            del update_data["vault_id"]
+        if "video_url" in update_data and update_data["video_url"] is None:
+            del update_data["video_url"]
+
         for key, value in update_data.items():
             setattr(node, key, value)
 
@@ -262,7 +273,7 @@ class AdminCourseService:
             course = Course(
                 id=course_id,
                 title=f"Auto Generated Course {course_id}",
-                is_active=True,
+                is_active=1,
             )
             vault_db.add(course)
             await vault_db.flush()
